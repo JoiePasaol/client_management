@@ -21,14 +21,14 @@ export function Layout() {
   }, []);
 
   return (
-    <div className="flex h-screen bg-gray-100">
+    <div className="flex h-screen bg-gray-900">
       {/* Sidebar - now always visible but collapsible on all screen sizes */}
       <Sidebar isOpen={sidebarOpen} onToggle={toggleSidebar} />
 
       {/* Main content area */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Header */}
-        <header className="bg-white border-b border-gray-200 px-6 py-4 h-16">
+        <header className="bg-gray-800 border-b border-gray-700 px-6 py-4 h-16">
           {/* Header content goes here */}
         </header>
 

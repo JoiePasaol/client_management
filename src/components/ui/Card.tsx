@@ -10,7 +10,7 @@ interface CardProps {
 export function Card({ children, className = '', hover = true }: CardProps) {
   return (
     <motion.div
-      className={`bg-white rounded-xl shadow-sm border border-gray-100 ${className}`}
+      className={`bg-gray-800 rounded-xl shadow-sm border border-gray-700 ${className}`}
       whileHover={hover ? { y: -2, shadow: '0 10px 25px -3px rgba(0, 0, 0, 0.1)' } : undefined}
       transition={{ duration: 0.2 }}
     >

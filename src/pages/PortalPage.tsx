@@ -28,8 +28,8 @@ export function PortalPage() {
         className="flex items-center justify-between"
       >
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Portal</h1>
-          <p className="text-gray-600 mt-2">Monitor your public portal performance and visitor engagement.</p>
+          <h1 className="text-3xl font-bold text-white">Portal</h1>
+          <p className="text-gray-400 mt-2">Monitor your public portal performance and visitor engagement.</p>
         </div>
         <div className="flex space-x-3">
           <Button variant="secondary" className="flex items-center space-x-2">
@@ -57,8 +57,8 @@ export function PortalPage() {
               <Card className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-gray-600">{stat.label}</p>
-                    <p className="text-2xl font-bold text-gray-900 mt-2">{stat.value}</p>
+                    <p className="text-sm font-medium text-gray-400">{stat.label}</p>
+                    <p className="text-2xl font-bold text-white mt-2">{stat.value}</p>
                   </div>
                   <div className="h-12 w-12 bg-blue-50 rounded-lg flex items-center justify-center">
                     <Icon className="h-6 w-6 text-blue-600" />
@@ -68,7 +68,7 @@ export function PortalPage() {
                   <span className="text-green-600 text-sm font-medium">
                     {stat.change}
                   </span>
-                  <span className="text-gray-600 text-sm ml-2">from last month</span>
+                  <span className="text-gray-400 text-sm ml-2">from last month</span>
                 </div>
               </Card>
             </motion.div>
@@ -86,15 +86,15 @@ export function PortalPage() {
           className="lg:col-span-2"
         >
           <Card className="p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+            <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
               <Globe className="h-5 w-5 mr-2" />
               Portal Preview
             </h3>
-            <div className="aspect-video bg-gradient-to-br from-blue-50 via-white to-cyan-50 rounded-lg border-2 border-dashed border-gray-200 flex items-center justify-center">
+            <div className="aspect-video bg-gradient-to-br from-gray-700 via-gray-600 to-gray-700 rounded-lg border-2 border-dashed border-gray-600 flex items-center justify-center">
               <div className="text-center">
                 <Globe className="h-12 w-12 text-blue-600 mx-auto mb-4" />
-                <h4 className="text-xl font-semibold text-gray-900 mb-2">Your Portal</h4>
-                <p className="text-gray-600 mb-4">Preview of your public-facing portal</p>
+                <h4 className="text-xl font-semibold text-white mb-2">Your Portal</h4>
+                <p className="text-gray-300 mb-4">Preview of your public-facing portal</p>
                 <Button variant="secondary" className="flex items-center space-x-2 mx-auto">
                   <ExternalLink className="h-4 w-4" />
                   <span>Open Portal</span>
@@ -111,7 +111,7 @@ export function PortalPage() {
           transition={{ delay: 0.6 }}
         >
           <Card className="p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Visitors</h3>
+            <h3 className="text-lg font-semibold text-white mb-4">Recent Visitors</h3>
             <div className="space-y-4">
               {recentVisitors.map((visitor, index) => (
                 <motion.div
@@ -119,7 +119,7 @@ export function PortalPage() {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.7 + index * 0.1 }}
-                  className="flex items-center space-x-3 p-3 rounded-lg hover:bg-gray-50 transition-colors"
+                  className="flex items-center space-x-3 p-3 rounded-lg hover:bg-gray-700 transition-colors"
                 >
                   <div className="h-10 w-10 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
                     <span className="text-sm font-medium text-white">
@@ -127,12 +127,12 @@ export function PortalPage() {
                     </span>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900">{visitor.name}</p>
-                    <p className="text-xs text-gray-500">{visitor.company}</p>
+                    <p className="text-sm font-medium text-white">{visitor.name}</p>
+                    <p className="text-xs text-gray-400">{visitor.company}</p>
                     <p className="text-xs text-blue-600 mt-1">{visitor.page}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-xs text-gray-500">{visitor.time}</p>
+                    <p className="text-xs text-gray-400">{visitor.time}</p>
                   </div>
                 </motion.div>
               ))}
@@ -148,33 +148,33 @@ export function PortalPage() {
         transition={{ delay: 0.8 }}
       >
         <Card className="p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-6">Traffic Analysis</h3>
+          <h3 className="text-lg font-semibold text-white mb-6">Traffic Analysis</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="text-center">
               <div className="h-24 w-24 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Eye className="h-8 w-8 text-blue-600" />
               </div>
-              <h4 className="font-semibold text-gray-900 mb-2">Page Views</h4>
+              <h4 className="font-semibold text-white mb-2">Page Views</h4>
               <p className="text-2xl font-bold text-blue-600">2,847</p>
-              <p className="text-sm text-gray-600">This month</p>
+              <p className="text-sm text-gray-400">This month</p>
             </div>
             
             <div className="text-center">
               <div className="h-24 w-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Users className="h-8 w-8 text-green-600" />
               </div>
-              <h4 className="font-semibold text-gray-900 mb-2">Unique Visitors</h4>
+              <h4 className="font-semibold text-white mb-2">Unique Visitors</h4>
               <p className="text-2xl font-bold text-green-600">1,284</p>
-              <p className="text-sm text-gray-600">This month</p>
+              <p className="text-sm text-gray-400">This month</p>
             </div>
             
             <div className="text-center">
               <div className="h-24 w-24 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <TrendingUp className="h-8 w-8 text-purple-600" />
               </div>
-              <h4 className="font-semibold text-gray-900 mb-2">Conversion Rate</h4>
+              <h4 className="font-semibold text-white mb-2">Conversion Rate</h4>
               <p className="text-2xl font-bold text-purple-600">3.2%</p>
-              <p className="text-sm text-gray-600">This month</p>
+              <p className="text-sm text-gray-400">This month</p>
             </div>
           </div>
         </Card>
