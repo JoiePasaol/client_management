@@ -6,8 +6,10 @@ import { Layout } from './layouts/Layout';
 import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { ClientsPage } from './pages/ClientsPage';
+import { ClientInformation } from "./sections/ClientInformation";
 import { ProjectsPage } from './pages/ProjectsPage';
 import { PortalPage } from './pages/PortalPage';
+
 
 function App() {
   return (
@@ -27,6 +29,7 @@ function App() {
             <Route path="clients" element={<ClientsPage />} />
             <Route path="projects" element={<ProjectsPage />} />
             <Route path="portal" element={<PortalPage />} />
+            <Route path="clients/:id" element={<ClientInformation />} />
             <Route index element={<Navigate to="/dashboard" replace />} />
           </Route>
         </Routes>

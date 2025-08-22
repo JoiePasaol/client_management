@@ -29,10 +29,10 @@ export function Modal({ isOpen, onClose, title, children }: ModalProps) {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-gray-800 rounded-xl shadow-xl border border-gray-700 w-full max-w-md max-h-[90vh] overflow-hidden"
+              className="bg-gray-800 rounded-xl shadow-xl border border-gray-700 w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col"
             >
               {/* Header */}
-              <div className="flex items-center justify-between p-6 border-b border-gray-700">
+              <div className="flex items-center justify-between p-6 border-b border-gray-700 flex-shrink-0">
                 <h2 className="text-xl font-semibold text-white">{title}</h2>
                 <Button
                   variant="ghost"
@@ -44,8 +44,8 @@ export function Modal({ isOpen, onClose, title, children }: ModalProps) {
                 </Button>
               </div>
 
-              {/* Content */}
-              <div className="p-6 overflow-y-auto">
+              {/* Content - Let children handle their own scrolling and layout */}
+              <div className="flex-1 min-h-0">
                 {children}
               </div>
             </motion.div>

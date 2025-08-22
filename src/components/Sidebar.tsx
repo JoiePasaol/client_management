@@ -35,19 +35,8 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
 
   return (
     <>
-      {/* Mobile overlay */}
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onToggle}
-            className="lg:hidden fixed inset-0 bg-black bg-opacity-75 z-20"
-          />
-        )}
-      </AnimatePresence>
-
+      {/* Remove the mobile overlay completely since we're using margin approach */}
+      
       {/* Sidebar */}
       <motion.div
         initial={false}

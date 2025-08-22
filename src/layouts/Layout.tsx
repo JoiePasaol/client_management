@@ -25,15 +25,23 @@ export function Layout() {
       {/* Sidebar - now always visible but collapsible on all screen sizes */}
       <Sidebar isOpen={sidebarOpen} onToggle={toggleSidebar} />
 
-      {/* Main content area */}
-      <div className="flex-1 flex flex-col min-w-0">
+      {/* Main content area - with dynamic margin to account for fixed sidebar on small screens */}
+      <div 
+        className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ease-in-out ${
+          !isLargeScreen && sidebarOpen 
+            ? 'ml-[200px]' // Push content to the right when sidebar is open on small screens
+            : !isLargeScreen && !sidebarOpen
+            ? 'ml-[64px]' // Push content for collapsed sidebar on small screens
+            : '' // On large screens, sidebar is relative positioned so no margin needed
+        }`}
+      >
         {/* Header */}
         <header className="bg-gray-800 border-b border-gray-700 px-6 py-4 h-16">
           {/* Header content goes here */}
         </header>
 
         {/* Main content */}
-        <main className="flex-1 overflow-auto p-6">
+        <main className="flex-1 overflow-auto p-6"> 
           <Outlet />
         </main>
       </div>
