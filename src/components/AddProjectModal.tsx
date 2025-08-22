@@ -1,12 +1,17 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Upload, FileText, X } from "lucide-react";
+import { Upload, FileText, X, ChevronDown, User } from "lucide-react";
 import { Modal } from "./ui/Modal";
 import { Button } from "./ui/Button";
+import { clientService } from "../services/database";
 
-const projectSchema = z.object({
+// Define schema based on whether client selection is needed
+const createProjectSchema = (requireClientSelection: boolean) => z.object({
+  ...(requireClientSelection && {
+    clientId: z.number({ required_error: "Please select a client" }).min(1, "Please select a client")
+  }),
   title: z.string().min(1, "Project title is required"),
   description: z.string().min(1, "Project description is required"),
   deadline: z.string().min(1, "Deadline is required"),
@@ -16,23 +21,37 @@ const projectSchema = z.object({
   }),
 });
 
-type ProjectForm = z.infer<typeof projectSchema>;
-
 interface AddProjectModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: ProjectForm & { invoice?: File }) => void;
-  clientName: string;
+  onSubmit: (data: any & { invoice?: File }) => void;
+  clientName?: string; // If provided, we're adding to a specific client
+  clientId?: number; // If provided, we're adding to a specific client
 }
+
+type ClientOption = {
+  id: number;
+  full_name: string;
+  company_name: string;
+};
 
 export function AddProjectModal({
   isOpen,
   onClose,
   onSubmit,
   clientName,
+  clientId,
 }: AddProjectModalProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [dragActive, setDragActive] = useState(false);
+  const [clients, setClients] = useState<ClientOption[]>([]);
+  const [loadingClients, setLoadingClients] = useState(false);
+  const [clientDropdownOpen, setClientDropdownOpen] = useState(false);
+
+  // Determine if we need client selection (when clientId is not provided)
+  const needsClientSelection = !clientId;
+  const projectSchema = createProjectSchema(needsClientSelection);
+  type ProjectForm = z.infer<typeof projectSchema>;
 
   const {
     register,
@@ -41,15 +60,48 @@ export function AddProjectModal({
     reset,
     setValue,
     watch,
+    clearErrors,
   } = useForm<ProjectForm>({
     resolver: zodResolver(projectSchema),
+    defaultValues: needsClientSelection ? {} : { clientId },
   });
 
   const watchedStatus = watch("status");
+  const watchedClientId = needsClientSelection ? watch("clientId" as keyof ProjectForm) : clientId;
+
+  // Load clients when modal opens and client selection is needed
+  useEffect(() => {
+    if (isOpen && needsClientSelection) {
+      loadClients();
+    }
+  }, [isOpen, needsClientSelection]);
+
+  const loadClients = async () => {
+    try {
+      setLoadingClients(true);
+      const clientsData = await clientService.getAllClientsWithStats();
+      setClients(clientsData.map(client => ({
+        id: client.id,
+        full_name: client.full_name,
+        company_name: client.company_name
+      })));
+    } catch (error) {
+      console.error('Error loading clients:', error);
+    } finally {
+      setLoadingClients(false);
+    }
+  };
 
   const handleFormSubmit = async (data: ProjectForm) => {
     try {
-      await onSubmit({ ...data, invoice: selectedFile || undefined });
+      // Add clientId to the data if it's not already there (for pre-selected clients)
+      const submitData = {
+        ...data,
+        ...(clientId && { clientId }),
+        invoice: selectedFile || undefined
+      };
+      
+      await onSubmit(submitData);
       reset();
       setSelectedFile(null);
       onClose();
@@ -61,6 +113,7 @@ export function AddProjectModal({
   const handleClose = () => {
     reset();
     setSelectedFile(null);
+    setClientDropdownOpen(false);
     onClose();
   };
 
@@ -104,18 +157,94 @@ export function AddProjectModal({
     setSelectedFile(null);
   };
 
+  const handleClientSelect = (selectedClientId: number) => {
+    setValue("clientId" as keyof ProjectForm, selectedClientId as any);
+    clearErrors("clientId" as keyof ProjectForm);
+    setClientDropdownOpen(false);
+  };
+
+  const selectedClient = needsClientSelection 
+    ? clients.find(client => client.id === watchedClientId)
+    : null;
+
+  // Determine modal title
+  const modalTitle = clientName 
+    ? `Add Project for ${clientName}` 
+    : "Add New Project";
+
   return (
     <Modal
       isOpen={isOpen}
       onClose={handleClose}
-      title={`Add Project for ${clientName}`}
+      title={modalTitle}
     >
-      {/* This div handles the scrolling behavior for this specific modal */}
       <div className="overflow-y-auto max-h-[calc(90vh-8rem)]">
         <form
           onSubmit={handleSubmit(handleFormSubmit)}
           className="space-y-6 p-6"
         >
+          {/* Client Selection - Only show when clientId is not provided */}
+          {needsClientSelection && (
+            <div>
+              <label className="block text-sm font-medium text-gray-200 mb-2">
+                Select Client
+              </label>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setClientDropdownOpen(!clientDropdownOpen)}
+                  className={`w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-left flex items-center justify-between focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                    selectedClient ? 'text-white' : 'text-gray-400'
+                  }`}
+                >
+                  <div className="flex items-center space-x-3">
+                    <User className="h-4 w-4 text-gray-400" />
+                    <div>
+                      {selectedClient ? (
+                        <div>
+                          <span className="text-white">{selectedClient.full_name}</span>
+                          <span className="text-gray-400 text-sm ml-2">• {selectedClient.company_name}</span>
+                        </div>
+                      ) : (
+                        <span>Select a client...</span>
+                      )}
+                    </div>
+                  </div>
+                  <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform ${
+                    clientDropdownOpen ? 'transform rotate-180' : ''
+                  }`} />
+                </button>
+
+                {clientDropdownOpen && (
+                  <div className="absolute z-50 w-full mt-1 bg-gray-700 border border-gray-600 rounded-lg shadow-lg max-h-60 overflow-auto">
+                    {loadingClients ? (
+                      <div className="px-3 py-2 text-gray-400 text-center">Loading clients...</div>
+                    ) : clients.length === 0 ? (
+                      <div className="px-3 py-2 text-gray-400 text-center">No clients found</div>
+                    ) : (
+                      clients.map((client) => (
+                        <button
+                          key={client.id}
+                          type="button"
+                          onClick={() => handleClientSelect(client.id)}
+                          className="w-full px-3 py-2 text-left hover:bg-gray-600 focus:bg-gray-600 focus:outline-none transition-colors"
+                        >
+                          <div className="text-white">{client.full_name}</div>
+                          <div className="text-gray-400 text-sm">{client.company_name}</div>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+              {errors.clientId && (
+                <p className="mt-2 text-sm text-red-400">
+                  {errors.clientId.message}
+                </p>
+              )}
+            </div>
+          )}
+
           <div>
             <label
               htmlFor="title"

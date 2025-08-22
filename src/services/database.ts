@@ -155,6 +155,30 @@ export const projectService = {
     return data || []
   },
 
+  // Get all projects with client information
+  async getAllProjectsWithClients(): Promise<Array<Project & { 
+    client: {
+      id: number;
+      full_name: string;
+      company_name: string;
+    }
+  }>> {
+    const { data, error } = await supabase
+      .from('projects')
+      .select(`
+        *,
+        client:clients(id, full_name, company_name)
+      `)
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      console.error('Error fetching projects with clients:', error)
+      throw new Error(`Failed to fetch projects with clients: ${error.message}`)
+    }
+
+    return data || []
+  },
+
   // Update project
   async updateProject(projectId: number, updates: Partial<Omit<Project, 'id' | 'client_id' | 'created_at'>>): Promise<Project> {
     const { data, error } = await supabase

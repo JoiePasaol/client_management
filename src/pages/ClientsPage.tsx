@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus,
   Search,
@@ -10,14 +10,18 @@ import {
   Phone,
   MapPin,
   Loader2,
-  AlertCircle
+  AlertCircle,
 } from "lucide-react";
 import { Card } from "../components/ui/Card";
 import { Button } from "../components/ui/Button";
+import { ConfirmDialog } from "../components/ui/Dialog";
 import { AddClientModal } from "../components/AddClientModal";
+import { EditClientModal } from "../components/EditClientModal";
 import { useNavigate } from "react-router-dom";
 import { clientService } from "../services/database";
+import { useToaster } from "../context/ToasterContext";
 
+// Client types
 type ClientWithStats = {
   id: number;
   full_name: string;
@@ -37,6 +41,32 @@ export function ClientsPage() {
   const [clients, setClients] = useState<ClientWithStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Use global toaster
+  const { showSuccess, showError } = useToaster();
+  
+  // Edit client modal state
+  const [editClientModal, setEditClientModal] = useState<{
+    isOpen: boolean;
+    client: ClientWithStats | null;
+  }>({
+    isOpen: false,
+    client: null,
+  });
+  
+  // Dialog states
+  const [deleteDialog, setDeleteDialog] = useState<{
+    isOpen: boolean;
+    clientId: number | null;
+    clientName: string;
+    isDeleting: boolean;
+  }>({
+    isOpen: false,
+    clientId: null,
+    clientName: "",
+    isDeleting: false,
+  });
+
   const navigate = useNavigate();
 
   // Load clients on component mount
@@ -75,40 +105,126 @@ export function ClientsPage() {
       });
       
       setIsAddClientModalOpen(false);
+      
+      // Show success toast
+      showSuccess(
+        'Client Added Successfully',
+        `${clientData.fullName} has been added to your client list`
+      );
+      
       // Reload clients to show the new one
       await loadClients();
-      
-      // Show success message (you might want to add a toast notification here)
-      console.log("Client added successfully!");
     } catch (err) {
       console.error("Error adding client:", err);
-      // Show error message (you might want to add a toast notification here)
-      alert(err instanceof Error ? err.message : 'Failed to add client');
+      showError(
+        'Failed to Add Client',
+        err instanceof Error ? err.message : 'An unexpected error occurred'
+      );
     }
   };
 
-  const handleDeleteClient = async (clientId: number, e: React.MouseEvent) => {
+  const handleEditClient = (client: ClientWithStats, e: React.MouseEvent) => {
     e.stopPropagation();
-    
-    if (!window.confirm('Are you sure you want to delete this client? This will also delete all associated projects.')) {
-      return;
-    }
+    setEditClientModal({
+      isOpen: true,
+      client: client,
+    });
+  };
+
+  const handleUpdateClient = async (clientData: {
+    fullName: string;
+    email: string;
+    phoneNumber: string;
+    address: string;
+    companyName: string;
+  }) => {
+    if (!editClientModal.client) return;
 
     try {
-      await clientService.deleteClient(clientId);
-      // Remove client from local state
-      setClients(prev => prev.filter(client => client.id !== clientId));
-      console.log("Client deleted successfully!");
+      await clientService.updateClient(editClientModal.client.id, {
+        full_name: clientData.fullName,
+        email: clientData.email,
+        phone_number: clientData.phoneNumber,
+        address: clientData.address,
+        company_name: clientData.companyName,
+      });
+      
+      setEditClientModal({ isOpen: false, client: null });
+      
+      // Show success toast
+      showSuccess(
+        'Client Updated Successfully',
+        `${clientData.fullName}'s information has been updated`
+      );
+      
+      // Reload clients to show the updated information
+      await loadClients();
     } catch (err) {
-      console.error("Error deleting client:", err);
-      alert(err instanceof Error ? err.message : 'Failed to delete client');
+      console.error("Error updating client:", err);
+      showError(
+        'Failed to Update Client',
+        err instanceof Error ? err.message : 'An unexpected error occurred'
+      );
     }
   };
 
-  const handleEditClient = (clientId: number, e: React.MouseEvent) => {
+  const handleDeleteClient = (clientId: number, clientName: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    console.log("Edit client:", clientId);
-    // TODO: Implement edit modal
+    setDeleteDialog({
+      isOpen: true,
+      clientId,
+      clientName,
+      isDeleting: false,
+    });
+  };
+
+  const confirmDeleteClient = async () => {
+    if (!deleteDialog.clientId) return;
+
+    try {
+      setDeleteDialog(prev => ({ ...prev, isDeleting: true }));
+      
+      await clientService.deleteClient(deleteDialog.clientId);
+      
+      // Remove client from local state
+      setClients(prev => prev.filter(client => client.id !== deleteDialog.clientId));
+      
+      // Show success toast for deletion
+      showError(
+        'Client Deleted',
+        `${deleteDialog.clientName} has been permanently removed from your client list`
+      );
+      
+      // Close delete dialog
+      setDeleteDialog({
+        isOpen: false,
+        clientId: null,
+        clientName: "",
+        isDeleting: false,
+      });
+    } catch (err) {
+      console.error("Error deleting client:", err);
+      setDeleteDialog(prev => ({ ...prev, isDeleting: false }));
+      showError(
+        'Failed to Delete Client',
+        err instanceof Error ? err.message : 'An unexpected error occurred'
+      );
+    }
+  };
+
+  const closeDeleteDialog = () => {
+    if (!deleteDialog.isDeleting) {
+      setDeleteDialog({
+        isOpen: false,
+        clientId: null,
+        clientName: "",
+        isDeleting: false,
+      });
+    }
+  };
+
+  const closeEditModal = () => {
+    setEditClientModal({ isOpen: false, client: null });
   };
 
   const handleClientClick = (client: ClientWithStats) => {
@@ -183,7 +299,7 @@ export function ClientsPage() {
         <div>
           <h1 className="text-3xl font-bold text-white">Clients</h1>
           <p className="text-gray-400 mt-2">
-            Manage your client relationships ({clients.length} total)
+            Manage your client relationships <span className="text-white"> ({clients.length} total) </span>
           </p>
         </div>
         <Button
@@ -215,7 +331,7 @@ export function ClientsPage() {
 
       {/* Clients Grid */}
       {filteredClients.length === 0 ? (
-        <div className="flex items-center justify-center min-h-[300px]">
+        <div className="flex items-center justify-center  min-h-[300px]">
           <Card className="p-8 text-center max-w-md">
             <h3 className="text-lg font-medium text-white mb-2">
               {searchTerm ? 'No clients found' : 'No clients yet'}
@@ -260,19 +376,13 @@ export function ClientsPage() {
                   </div>
                   <div className="flex space-x-2">
                     <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleEditClient(client.id, e);
-                      }}
+                      onClick={(e) => handleEditClient(client, e)}
                       className="p-1 text-gray-400 hover:text-blue-400 transition-colors"
                     >
                       <Edit className="h-4 w-4" />
                     </button>
                     <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteClient(client.id, e);
-                      }}
+                      onClick={(e) => handleDeleteClient(client.id, client.full_name, e)}
                       className="p-1 text-gray-400 hover:text-red-400 transition-colors"
                     >
                       <Trash2 className="h-4 w-4" />
@@ -308,26 +418,39 @@ export function ClientsPage() {
                 <div className="flex justify-between items-center border-t border-gray-700 pt-4">
                   <div className="text-center">
                     <p className="text-sm text-gray-400">Projects</p>
-                    <p className="text-white font-medium">{client.project_count}</p>
+                    <p
+                      className={`font-medium ${
+                        client.project_count > 0 ? "text-white" : "text-gray-400"
+                      }`}
+                    >
+                      {client.project_count}
+                    </p>
                   </div>
                   <div className="text-center">
                     <p className="text-sm text-gray-400">Revenue</p>
-                    <p className="text-white font-medium">
+                    <p
+                      className={`font-medium ${
+                        client.total_revenue > 0
+                          ? "text-white"
+                          : "text-gray-400"
+                      }`}
+                    >
                       {formatCurrency(client.total_revenue)}
                     </p>
                   </div>
                   <div className="text-center">
-                    <p className="text-sm text-gray-400">Active</p>
+                    <p className="text-sm text-blue-400">Active</p>
                     <p
                       className={`font-medium ${
                         client.active_project_count > 0
-                          ? "text-green-400"
+                          ? "text-blue-400"
                           : "text-gray-400"
                       }`}
                     >
-                      {client.active_project_count > 0 ? "Yes" : "No"}
+                      {client.active_project_count}
                     </p>
                   </div>
+                  
                 </div>
               </Card>
             </motion.div>
@@ -340,6 +463,27 @@ export function ClientsPage() {
         isOpen={isAddClientModalOpen}
         onClose={() => setIsAddClientModalOpen(false)}
         onSubmit={handleAddClient}
+      />
+
+      {/* Edit Client Modal */}
+      <EditClientModal
+        isOpen={editClientModal.isOpen}
+        onClose={closeEditModal}
+        onSubmit={handleUpdateClient}
+        client={editClientModal.client}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={deleteDialog.isOpen}
+        onClose={closeDeleteDialog}
+        onConfirm={confirmDeleteClient}
+        title="Delete Client"
+        message={`Are you sure you want to delete "${deleteDialog.clientName}"? This action will permanently remove the client and all associated projects. This cannot be undone.`}
+        confirmText="Yes, Delete"
+        cancelText="Cancel"
+        isLoading={deleteDialog.isDeleting}
+        variant="danger"
       />
     </div>
   );
