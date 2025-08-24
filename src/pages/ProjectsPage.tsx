@@ -110,7 +110,8 @@ export function ProjectsPage() {
         });
       }
 
-      setProjectModalOpen(false);
+      // Close modal
+      addProjectModal.closeModal();
 
       // Show success toast
       showSuccess(
@@ -176,7 +177,7 @@ export function ProjectsPage() {
   const handleUpdateProject = async (projectId: number, projectData: any) => {
     try {
       // Handle file upload if needed
-      let invoiceUrl = editDialog.project?.invoice_url;
+      let invoiceUrl = editProjectModal.data?.invoice_url;
       if (projectData.invoice) {
         invoiceUrl = await fileService.uploadInvoice(
           projectData.invoice,
