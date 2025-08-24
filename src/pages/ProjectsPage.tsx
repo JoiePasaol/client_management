@@ -1,10 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import {
-  FolderOpen,
-  Plus,
-  DollarSign,
-} from "lucide-react";
+import { FolderOpen, Plus, DollarSign, Clock, Calendar } from "lucide-react";
 import { Card } from "../components/ui/Card";
 import { Button } from "../components/ui/Button";
 import { ConfirmDialog } from "../components/ui/Dialog";
@@ -282,7 +278,6 @@ export function ProjectsPage() {
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {[
-         
           {
             label: "In Progress",
             value: inProgressProjects.toString(),
@@ -356,8 +351,10 @@ export function ProjectsPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {filteredProjects.map((project, index) => {
             // Calculate actual payment progress
-            const paymentProgress = calculatePaymentProgress(project.total_paid, project.budget);
-         
+            const paymentProgress = calculatePaymentProgress(
+              project.total_paid,
+              project.budget
+            );
 
             return (
               <motion.div
@@ -381,7 +378,9 @@ export function ProjectsPage() {
                       <StatusBadge status={project.status} />
                       <ActionButtons
                         onEdit={() => handleEditProject(project)}
-                        onDelete={(e) => handleDeleteProject(project.id, project.title, e)}
+                        onDelete={(e) =>
+                          handleDeleteProject(project.id, project.title, e)
+                        }
                       />
                     </div>
                   </div>
@@ -399,8 +398,20 @@ export function ProjectsPage() {
                   />
 
                   {/* Deadline */}
-                  <div className="mb-4">
-                    <DeadlineInfo deadline={project.deadline} />
+                  <div className="mb-4 flex justify-between">
+                    <div className="flex items-center space-x-2 text-sm">
+                    <Calendar className="h-4 w-4 text-gray-400" />
+                    <span className="text-gray-300">
+                      Due: {formatDate(project.deadline)}
+                    </span>
+                    </div>
+
+                    <div className="flex items-center space-x-2 text-sm">
+                    <Clock className="h-4 w-4 text-gray-400" />
+                    <span className="text-gray-300">
+                      Created: {formatDate(project.created_at)}
+                    </span>
+                    </div>
                   </div>
 
                   {project.invoice_url && (

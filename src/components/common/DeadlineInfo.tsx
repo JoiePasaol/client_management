@@ -6,6 +6,7 @@ import { formatDate } from '../../utils/formatters';
 
 interface DeadlineInfoProps {
   deadline: string;
+  status?: "Started" | "Finished";
   showIcon?: boolean;
   showBackground?: boolean;
   className?: string;
@@ -13,6 +14,7 @@ interface DeadlineInfoProps {
 
 export function DeadlineInfo({ 
   deadline, 
+  status,
   showIcon = true, 
   showBackground = false,
   className = '' 
@@ -30,9 +32,11 @@ export function DeadlineInfo({
       )}
       <div>
         <p className="text-sm text-white">{formatDate(deadline)}</p>
-        <p className={`text-xs ${getDeadlineColor(deadlineStatus.isOverdue, deadlineStatus.days)}`}>
-          {deadlineStatus.message}
-        </p>
+        {status !== "Finished" && (
+          <p className={`text-xs ${getDeadlineColor(deadlineStatus.isOverdue, deadlineStatus.days)}`}>
+            {deadlineStatus.message}
+          </p>
+        )}
       </div>
     </div>
   );

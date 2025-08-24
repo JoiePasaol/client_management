@@ -27,13 +27,6 @@ export const calculatePaymentProgress = (totalPaid: number, budget: number): num
     };
   };
   
-  export const shouldAutoCompleteProject = (
-    currentStatus: string,
-    totalPaid: number,
-    budget: number
-  ): boolean => {
-    return currentStatus === "Started" && totalPaid >= budget;
-  };
   
   export const shouldRevertProjectStatus = (
     currentStatus: string,
@@ -41,4 +34,8 @@ export const calculatePaymentProgress = (totalPaid: number, budget: number): num
     budget: number
   ): boolean => {
     return currentStatus === "Finished" && totalPaid < budget;
+  };
+  
+  export const isPaymentCompleted = (totalPaid: number, budget: number): boolean => {
+    return totalPaid >= budget;
   };

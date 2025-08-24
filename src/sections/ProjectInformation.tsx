@@ -9,6 +9,7 @@ import {
   FileText,
   CreditCard,
   User,
+  Check,
 } from "lucide-react";
 
 import {
@@ -21,18 +22,13 @@ import { useToaster } from "../context/ToasterContext";
 import type { Payment, ProjectUpdate } from "../lib/supabase";
 
 // Utility imports
-import {
-  formatCurrency,
-  formatDate,
-  parseBudget,
-} from "../utils/formatters";
+import { formatCurrency, formatDate, parseBudget } from "../utils/formatters";
 import {
   calculatePaymentProgress,
   getDeadlineStatus,
-  shouldAutoCompleteProject,
   shouldRevertProjectStatus,
+  isPaymentCompleted,
 } from "../utils/calculations";
-
 
 // Component imports
 import { ActionButtons } from "../components/common/ActionButtons";
@@ -85,7 +81,7 @@ type ProjectUpdateForm = {
 };
 
 type DeleteData = {
-  type: 'project' | 'payment' | 'update';
+  type: "project" | "payment" | "update";
   id: number;
   name: string;
   amount?: number;
@@ -108,7 +104,8 @@ export function ProjectInformation() {
   const editProjectModal = useModal();
   const recordPaymentModal = useModal();
   const addUpdateModal = useModal();
-  
+  const markAsDoneDialog = useConfirmDialog();
+
   // Pagination hooks
   const paymentPagination = usePagination(payments);
   const updatePagination = usePagination(projectUpdates);
@@ -130,7 +127,9 @@ export function ProjectInformation() {
         return;
       }
 
-      const clientData = await clientService.getClientWithProjects(projectData.client.id);
+      const clientData = await clientService.getClientWithProjects(
+        projectData.client.id
+      );
       if (!clientData) {
         setError("Client data not found");
         return;
@@ -150,49 +149,52 @@ export function ProjectInformation() {
 
       setProject(fullProject);
 
-      const sortedPayments = (projectData.payments || []).sort((a, b) => 
-        new Date(b.payment_date).getTime() - new Date(a.payment_date).getTime()
+      const sortedPayments = (projectData.payments || []).sort(
+        (a, b) =>
+          new Date(b.payment_date).getTime() -
+          new Date(a.payment_date).getTime()
       );
       setPayments(sortedPayments);
 
-      const sortedUpdates = (projectData.project_updates || []).sort((a, b) => 
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      const sortedUpdates = (projectData.project_updates || []).sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       );
       setProjectUpdates(sortedUpdates);
-
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load project data");
+      setError(
+        err instanceof Error ? err.message : "Failed to load project data"
+      );
       console.error("Error loading project:", err);
     } finally {
       setLoading(false);
     }
   };
 
-  const checkAndUpdateProjectStatus = async (
-    projectId: number, 
-    currentBudget: number, 
-    totalPaid: number, 
-    currentStatus: string
-  ) => {
-    if (shouldAutoCompleteProject(currentStatus, totalPaid, currentBudget)) {
-      try {
-        await projectService.updateProject(projectId, { status: "Finished" });
-        await projectUpdateService.createProjectUpdate({
-          projectId: projectId,
-          description: "Project automatically marked as completed - full payment received."
-        });
+  const handleMarkAsDone = async () => {
+    if (!project) return;
 
-        showSuccess(
-          "Project Completed!",
-          "Project has been automatically marked as finished since full payment has been received."
-        );
-        
-        return true;
-      } catch (error) {
-        console.error("Error auto-updating project status:", error);
-      }
+    try {
+      markAsDoneDialog.setLoading(true);
+
+      // Update project status to finished
+      await projectService.updateProject(project.id, { status: "Finished" });
+
+      showSuccess(
+        "Project Completed!",
+        "Project has been marked as finished successfully."
+      );
+
+      markAsDoneDialog.closeDialog();
+      await loadProjectData(project.id);
+    } catch (error) {
+      console.error("Error marking project as done:", error);
+      markAsDoneDialog.setLoading(false);
+      showError(
+        "Failed to Mark as Done",
+        error instanceof Error ? error.message : "An unexpected error occurred"
+      );
     }
-    return false;
   };
 
   const handleDeleteProject = async () => {
@@ -201,8 +203,11 @@ export function ProjectInformation() {
     try {
       deleteDialog.setLoading(true);
       await projectService.deleteProject(deleteDialog.data.id);
-      
-      showError("Project Deleted", `${deleteDialog.data.name} has been permanently removed`);
+
+      showError(
+        "Project Deleted",
+        `${deleteDialog.data.name} has been permanently removed`
+      );
       navigate("/projects");
     } catch (err) {
       console.error("Error deleting project:", err);
@@ -222,36 +227,44 @@ export function ProjectInformation() {
       await paymentService.deletePayment(deleteDialog.data.id);
 
       const newTotalPaid = payments.reduce((sum, payment) => {
-        return payment.id === deleteDialog.data!.id ? sum : sum + payment.amount;
+        return payment.id === deleteDialog.data!.id
+          ? sum
+          : sum + payment.amount;
       }, 0);
 
-      if (shouldRevertProjectStatus(project.status, newTotalPaid, project.budget)) {
+      if (
+        shouldRevertProjectStatus(project.status, newTotalPaid, project.budget)
+      ) {
         try {
           await projectService.updateProject(project.id, { status: "Started" });
-          await projectUpdateService.createProjectUpdate({
-            projectId: project.id,
-            description: "Project status reverted to 'Started' - payment was removed and total is now below budget."
-          });
 
           showSuccess(
             "Payment Deleted & Status Updated",
-            `Payment of ${formatCurrency(deleteDialog.data.amount!)} has been removed. Project status reverted to 'Started'.`
+            `Payment of ${formatCurrency(
+              deleteDialog.data.amount!
+            )} has been removed. Project status reverted to 'Started'.`
           );
         } catch (error) {
           console.error("Error reverting project status:", error);
           showSuccess(
             "Payment Deleted",
-            `Payment of ${formatCurrency(deleteDialog.data.amount!)} has been removed`
+            `Payment of ${formatCurrency(
+              deleteDialog.data.amount!
+            )} has been removed`
           );
         }
       } else {
         showSuccess(
           "Payment Deleted",
-          `Payment of ${formatCurrency(deleteDialog.data.amount!)} has been removed`
+          `Payment of ${formatCurrency(
+            deleteDialog.data.amount!
+          )} has been removed`
         );
       }
 
-      setPayments(prev => prev.filter(payment => payment.id !== deleteDialog.data!.id));
+      setPayments((prev) =>
+        prev.filter((payment) => payment.id !== deleteDialog.data!.id)
+      );
       deleteDialog.closeDialog();
       await loadProjectData(project.id);
     } catch (err) {
@@ -271,9 +284,14 @@ export function ProjectInformation() {
       deleteDialog.setLoading(true);
       await projectUpdateService.deleteProjectUpdate(deleteDialog.data.id);
 
-      setProjectUpdates(prev => prev.filter(update => update.id !== deleteDialog.data!.id));
-      showSuccess("Update Deleted", "Project update has been removed successfully");
-      
+      setProjectUpdates((prev) =>
+        prev.filter((update) => update.id !== deleteDialog.data!.id)
+      );
+      showSuccess(
+        "Update Deleted",
+        "Project update has been removed successfully"
+      );
+
       deleteDialog.closeDialog();
       await loadProjectData(project.id);
     } catch (err) {
@@ -290,13 +308,13 @@ export function ProjectInformation() {
     if (!deleteDialog.data) return;
 
     switch (deleteDialog.data.type) {
-      case 'project':
+      case "project":
         await handleDeleteProject();
         break;
-      case 'payment':
+      case "payment":
         await handleDeletePayment();
         break;
-      case 'update':
+      case "update":
         await handleDeleteUpdate();
         break;
     }
@@ -304,9 +322,10 @@ export function ProjectInformation() {
 
   const handleUpdateProject = async (projectId: number, updateData: any) => {
     try {
-      const budgetNumber = typeof updateData.budget === 'string' 
-        ? parseBudget(updateData.budget)
-        : updateData.budget;
+      const budgetNumber =
+        typeof updateData.budget === "string"
+          ? parseBudget(updateData.budget)
+          : updateData.budget;
 
       const projectUpdatePayload = {
         title: updateData.title,
@@ -314,13 +333,15 @@ export function ProjectInformation() {
         deadline: updateData.deadline,
         budget: budgetNumber,
         status: updateData.status,
-        ...(updateData.invoice && { invoice_url: updateData.invoice })
+        ...(updateData.invoice && { invoice_url: updateData.invoice }),
       };
 
       await projectService.updateProject(projectId, projectUpdatePayload);
-      showSuccess("Project Updated", "Project information has been updated successfully");
+      showSuccess(
+        "Project Updated",
+        "Project information has been updated successfully"
+      );
       await loadProjectData(projectId);
-      
     } catch (err) {
       console.error("Error updating project:", err);
       showError(
@@ -342,29 +363,21 @@ export function ProjectInformation() {
         paymentMethod: paymentData.paymentMethod,
       });
 
-      const currentTotalPaid = payments.reduce((sum, payment) => sum + payment.amount, 0);
-      const newTotalPaid = currentTotalPaid + paymentData.amount;
-
-      const statusWasUpdated = await checkAndUpdateProjectStatus(
-        project.id,
-        project.budget,
-        newTotalPaid,
-        project.status
-      );
-
-      setPayments(prev => {
+      setPayments((prev) => {
         const updated = [newPayment, ...prev];
-        return updated.sort((a, b) => 
-          new Date(b.payment_date).getTime() - new Date(a.payment_date).getTime()
+        return updated.sort(
+          (a, b) =>
+            new Date(b.payment_date).getTime() -
+            new Date(a.payment_date).getTime()
         );
       });
 
-      if (!statusWasUpdated) {
-        showSuccess(
-          "Payment Recorded",
-          `Payment of ${formatCurrency(paymentData.amount)} has been recorded successfully`
-        );
-      }
+      showSuccess(
+        "Payment Recorded",
+        `Payment of ${formatCurrency(
+          paymentData.amount
+        )} has been recorded successfully`
+      );
 
       recordPaymentModal.closeModal();
       await loadProjectData(project.id);
@@ -386,10 +399,11 @@ export function ProjectInformation() {
         description: updateData.description,
       });
 
-      setProjectUpdates(prev => {
+      setProjectUpdates((prev) => {
         const updated = [newUpdate, ...prev];
-        return updated.sort((a, b) => 
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        return updated.sort(
+          (a, b) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
         );
       });
 
@@ -407,7 +421,7 @@ export function ProjectInformation() {
 
   const formatProjectForEdit = () => {
     if (!project) return undefined;
-    
+
     return {
       id: project.id,
       title: project.title,
@@ -425,17 +439,19 @@ export function ProjectInformation() {
   };
 
   const getDeleteMessage = () => {
-    if (!deleteDialog.data) return '';
-    
+    if (!deleteDialog.data) return "";
+
     switch (deleteDialog.data.type) {
-      case 'project':
+      case "project":
         return `Are you sure you want to delete "${deleteDialog.data.name}"? This action will permanently remove the project and cannot be undone.`;
-      case 'payment':
-        return `Are you sure you want to delete this payment of ${formatCurrency(deleteDialog.data.amount!)}? This action cannot be undone.`;
-      case 'update':
+      case "payment":
+        return `Are you sure you want to delete this payment of ${formatCurrency(
+          deleteDialog.data.amount!
+        )}? This action cannot be undone.`;
+      case "update":
         return `Are you sure you want to delete this update: "${deleteDialog.data.name}"? This action cannot be undone.`;
       default:
-        return '';
+        return "";
     }
   };
 
@@ -464,7 +480,11 @@ export function ProjectInformation() {
         </motion.div>
 
         <ErrorState
-          title={error === "Project not found" ? "Project Not Found" : "Error Loading Project"}
+          title={
+            error === "Project not found"
+              ? "Project Not Found"
+              : "Error Loading Project"
+          }
           message={error || "Unknown error occurred"}
           onRetry={() => navigate("/projects")}
           retryLabel="Back to Projects"
@@ -476,6 +496,7 @@ export function ProjectInformation() {
   const totalPaid = payments.reduce((sum, payment) => sum + payment.amount, 0);
   const paymentProgress = calculatePaymentProgress(totalPaid, project.budget);
   const deadlineStatus = getDeadlineStatus(project.deadline);
+  const paymentCompleted = isPaymentCompleted(totalPaid, project.budget);
 
   return (
     <div className="space-y-8">
@@ -509,11 +530,13 @@ export function ProjectInformation() {
             <div className="text-start relative">
               <ActionButtons
                 onEdit={() => editProjectModal.openModal()}
-                onDelete={() => deleteDialog.openDialog({
-                  type: 'project',
-                  id: project.id,
-                  name: project.title
-                })}
+                onDelete={() =>
+                  deleteDialog.openDialog({
+                    type: "project",
+                    id: project.id,
+                    name: project.title,
+                  })
+                }
                 className="absolute top-0 right-0"
               />
 
@@ -537,7 +560,9 @@ export function ProjectInformation() {
               <div className="bg-gray-700/30 rounded-lg p-6 border border-gray-600">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-gray-400">Project Budget</p>
+                    <p className="text-sm font-medium text-gray-400">
+                      Project Budget
+                    </p>
                     <p className="text-3xl font-bold text-white mt-2">
                       {formatCurrency(project.budget)}
                     </p>
@@ -552,23 +577,37 @@ export function ProjectInformation() {
               <div className="bg-gray-700/30 rounded-lg p-6 border border-gray-600">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-gray-400">Deadline</p>
-                    <DeadlineInfo deadline={project.deadline} showIcon={false} />
+                    <p className="text-sm font-medium text-gray-400">
+                      Deadline
+                    </p>
+                    <DeadlineInfo
+                      deadline={project.deadline}
+                      status={project.status}
+                      showIcon={false}
+                    />
                   </div>
-                  <div className={`h-12 w-12 rounded-lg mb-4 flex items-center justify-center ${
-                    deadlineStatus.isOverdue
-                      ? "bg-red-500/10"
-                      : deadlineStatus.days <= 7
-                      ? "bg-yellow-500/10"
-                      : "bg-green-500/10"
-                  }`}>
-                    <Calendar className={`h-6 w-6 ${
-                      deadlineStatus.isOverdue
-                        ? "text-red-400"
+                  <div
+                    className={`h-12 w-12 rounded-lg mt-2 flex items-center justify-center ${
+                      project.status === "Finished"
+                        ? "bg-green-500/10"
+                        : deadlineStatus.isOverdue
+                        ? "bg-red-500/10"
                         : deadlineStatus.days <= 7
-                        ? "text-yellow-400"
-                        : "text-green-400"
-                    }`} />
+                        ? "bg-yellow-500/10"
+                        : "bg-green-500/10"
+                    }`}
+                  >
+                    <Calendar
+                      className={`h-6 w-6 ${
+                        project.status === "Finished"
+                          ? "text-green-400"
+                          : deadlineStatus.isOverdue
+                          ? "text-red-400"
+                          : deadlineStatus.days <= 7
+                          ? "text-yellow-400"
+                          : "text-green-400"
+                      }`}
+                    />
                   </div>
                 </div>
               </div>
@@ -577,7 +616,9 @@ export function ProjectInformation() {
               <div className="bg-gray-700/30 rounded-lg p-6 border border-gray-600">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-gray-400">Total Paid</p>
+                    <p className="text-sm font-medium text-gray-400">
+                      Total Paid
+                    </p>
                     <p className="text-3xl font-bold text-white mt-2">
                       {formatCurrency(totalPaid)}
                     </p>
@@ -592,14 +633,19 @@ export function ProjectInformation() {
             {/* Payment Progress */}
             <div className="space-y-4">
               <div className="flex justify-between items-center">
-                <h3 className="text-lg font-medium text-white">Payment Progress</h3>
-                <StatusBadge status={project.status} />
+                <h3 className="text-lg font-medium text-white">
+                  Payment Progress
+                </h3>
+                <div className="flex items-center space-x-3">
+                  <StatusBadge status={project.status} />
+                </div>
               </div>
 
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-400">
-                    {formatCurrency(totalPaid)} of {formatCurrency(project.budget)}
+                    {formatCurrency(totalPaid)} of{" "}
+                    {formatCurrency(project.budget)}
                   </span>
                   <span className="text-white font-medium">
                     {Math.round(paymentProgress)}% Complete
@@ -612,6 +658,32 @@ export function ProjectInformation() {
                   budget={project.budget}
                   showAmounts={false}
                 />
+
+                {/* Payment Completed Message */}
+                {paymentCompleted && (
+                  <div className="flex items-center justify-between space-x-2 pt-2">
+                    <div className="flex items-center space-x-2">
+                      <Check className="h-4 w-4 text-green-400" />
+
+                      <span className="text-green-400 text-sm font-medium">
+                        Payment Completed - All funds received!
+                      </span>
+                    </div>
+                    <div>
+                      {/* Mark as Done button - only show when payment is completed and status is not finished */}
+                      {paymentCompleted && project.status !== "Finished" && (
+                        <Button
+                          size="sm"
+                          onClick={() => markAsDoneDialog.openDialog()}
+                          className="bg-green-600 hover:bg-green-700 text-white flex items-center space-x-2"
+                        >
+                          <Check className="h-4 w-4" />
+                          <span>Mark as Done</span>
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {project.invoice_url && (
@@ -649,7 +721,9 @@ export function ProjectInformation() {
 
           <Card variant="secondary" className="p-8 text-center">
             <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-white mb-2">No updates yet</h3>
+            <h3 className="text-lg font-medium text-white mb-2">
+              No updates yet
+            </h3>
             <p className="text-gray-400 mb-4">
               Keep track of project progress by adding updates and milestones
             </p>
@@ -668,7 +742,9 @@ export function ProjectInformation() {
             transition={{ delay: 0.2 }}
           >
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-medium text-white">Payment History</h2>
+              <h2 className="text-2xl font-medium text-white">
+                Payment History
+              </h2>
               <Button onClick={() => recordPaymentModal.openModal()}>
                 <Plus className="h-4 w-4 mr-2" />
                 Record Payment
@@ -712,19 +788,23 @@ export function ProjectInformation() {
                                     {payment.payment_method}
                                   </span>
                                   <span>•</span>
-                                  <span>{formatDate(payment.payment_date)}</span>
+                                  <span>
+                                    {formatDate(payment.payment_date)}
+                                  </span>
                                 </div>
                               </div>
                             </div>
 
                             <ActionButtons
-                              onEdit={() => {}} // No edit for payments in current design
-                              onDelete={() => deleteDialog.openDialog({
-                                type: 'payment',
-                                id: payment.id,
-                                name: '',
-                                amount: payment.amount
-                              })}
+                              showEdit={false}
+                              onDelete={() =>
+                                deleteDialog.openDialog({
+                                  type: "payment",
+                                  id: payment.id,
+                                  name: "",
+                                  amount: payment.amount,
+                                })
+                              }
                               className="opacity-0 group-hover:opacity-100 transition-opacity"
                             />
                           </div>
@@ -754,7 +834,9 @@ export function ProjectInformation() {
             transition={{ delay: 0.3 }}
           >
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-medium text-white">Project Updates</h2>
+              <h2 className="text-2xl font-medium text-white">
+                Project Updates
+              </h2>
               <Button onClick={() => addUpdateModal.openModal()}>
                 <Plus className="h-4 w-4 mr-2" />
                 Add Update
@@ -767,11 +849,10 @@ export function ProjectInformation() {
                 title="No updates yet"
                 description="Keep track of project progress by adding updates and milestones"
                 actionLabel="Add First Update"
-                onAction={() => addUpdateModal.openModal()} 
-              
+                onAction={() => addUpdateModal.openModal()}
               />
             ) : (
-              <Card variant="secondary ">
+              <Card variant="secondary">
                 <div className="p-6">
                   <div className="space-y-3">
                     {updatePagination.visibleItems.map((update, index) => (
@@ -803,13 +884,15 @@ export function ProjectInformation() {
                                 <ActionButtons
                                   onEdit={() => {}} // No edit for updates in current design
                                   onDelete={() => {
-                                    const truncatedDescription = update.description.length > 50 
-                                      ? update.description.substring(0, 50) + "..." 
-                                      : update.description;
+                                    const truncatedDescription =
+                                      update.description.length > 50
+                                        ? update.description.substring(0, 50) +
+                                          "..."
+                                        : update.description;
                                     deleteDialog.openDialog({
-                                      type: 'update',
+                                      type: "update",
                                       id: update.id,
-                                      name: truncatedDescription
+                                      name: truncatedDescription,
                                     });
                                   }}
                                   className="opacity-0 group-hover:opacity-100 transition-opacity"
@@ -842,7 +925,7 @@ export function ProjectInformation() {
       <ProjectModal
         isOpen={editProjectModal.isOpen}
         onClose={editProjectModal.closeModal}
-        onSubmit={() => {}} 
+        onSubmit={() => {}}
         onUpdate={handleUpdateProject}
         editingProject={formatProjectForEdit()}
       />
@@ -863,12 +946,31 @@ export function ProjectInformation() {
         projectTitle={project?.title}
       />
 
+      {/* Mark as Done Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={markAsDoneDialog.isOpen}
+        onClose={markAsDoneDialog.closeDialog}
+        onConfirm={handleMarkAsDone}
+        title="Mark Project as Done"
+        message={`Are you sure you want to mark "${project?.title}" as completed? This will change the project status to 'Finished'.`}
+        confirmText="Yes, Mark as Done"
+        cancelText="Cancel"
+        isLoading={markAsDoneDialog.isLoading}
+        variant="success"
+      />
+
       {/* Unified Delete Confirmation Dialog */}
       <ConfirmDialog
         isOpen={deleteDialog.isOpen}
         onClose={deleteDialog.closeDialog}
         onConfirm={confirmDelete}
-        title={`Delete ${deleteDialog.data?.type === 'project' ? 'Project' : deleteDialog.data?.type === 'payment' ? 'Payment' : 'Project Update'}`}
+        title={`Delete ${
+          deleteDialog.data?.type === "project"
+            ? "Project"
+            : deleteDialog.data?.type === "payment"
+            ? "Payment"
+            : "Project Update"
+        }`}
         message={getDeleteMessage()}
         confirmText="Yes, Delete"
         cancelText="Cancel"
