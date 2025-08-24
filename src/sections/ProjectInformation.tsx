@@ -10,6 +10,7 @@ import {
   CreditCard,
   User,
 } from "lucide-react";
+
 import {
   clientService,
   projectService,
@@ -631,179 +632,211 @@ export function ProjectInformation() {
         </Card>
       </motion.div>
 
-      {/* Payment History */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-      >
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-medium text-white">Payment History</h2>
-          <Button onClick={() => recordPaymentModal.openModal()}>
-            <Plus className="h-4 w-4 mr-2" />
-            Record Payment
-          </Button>
-        </div>
+      {/* Combined Payment History and Project Updates when both are empty */}
+      {payments.length === 0 && projectUpdates.length === 0 ? (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+        >
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-medium text-white">Project Updates</h2>
+            <Button onClick={() => addUpdateModal.openModal()}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Update
+            </Button>
+          </div>
 
-        {payments.length === 0 ? (
-          <EmptyState
-            icon={CreditCard}
-            title="No payments recorded yet"
-            description="Start tracking payments by adding your first payment record"
-            actionLabel="Add First Payment"
-            onAction={() => recordPaymentModal.openModal()}
-          />
-        ) : (
-          <Card variant="secondary">
-            <div className="p-6">
-              <div className="space-y-3">
-                {paymentPagination.visibleItems.map((payment, index) => (
-                  <motion.div
-                    key={payment.id}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    className="group relative overflow-hidden bg-gradient-to-r from-gray-800/50 to-gray-700/30 rounded-xl border border-gray-600/50 hover:border-gray-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-gray-900/20"
-                  >
-                    <div className="absolute inset-0 bg-gradient-to-r from-green-500/5 to-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                    <div className="relative p-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-4">
-                          <div className="relative h-12 w-12 bg-gradient-to-br from-green-500/20 to-green-600/20 rounded-xl flex items-center justify-center ring-1 ring-green-500/20">
-                            <DollarSign className="h-6 w-6 text-green-400" />
-                            <div className="absolute inset-0 bg-green-500/10 rounded-xl blur-sm" />
-                          </div>
-                          <div>
-                            <p className="text-lg font-semibold text-white mb-1">
-                              {formatCurrency(payment.amount)}
-                            </p>
-                            <div className="flex items-center space-x-2 text-sm text-gray-400">
-                              <span className="px-2 py-1 bg-gray-700/50 rounded-md text-xs font-medium">
-                                {payment.payment_method}
-                              </span>
-                              <span>•</span>
-                              <span>{formatDate(payment.payment_date)}</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        <ActionButtons
-                          onEdit={() => {}} // No edit for payments in current design
-                          onDelete={() => deleteDialog.openDialog({
-                            type: 'payment',
-                            id: payment.id,
-                            name: '',
-                            amount: payment.amount
-                          })}
-                          className="opacity-0 group-hover:opacity-100 transition-opacity"
-                        />
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-
-              <PaginationControls
-                hasMore={paymentPagination.hasMore}
-                canShowLess={paymentPagination.canShowLess}
-                onShowMore={paymentPagination.showMore}
-                onShowLess={paymentPagination.showLess}
-                visibleCount={paymentPagination.visibleCount}
-                totalCount={paymentPagination.totalCount}
-                itemName="payments"
-              />
-            </div>
+          <Card variant="secondary" className="p-8 text-center">
+            <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-white mb-2">No updates yet</h3>
+            <p className="text-gray-400 mb-4">
+              Keep track of project progress by adding updates and milestones
+            </p>
+            <Button onClick={() => addUpdateModal.openModal()}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add First Update
+            </Button>
           </Card>
-        )}
-      </motion.div>
+        </motion.div>
+      ) : (
+        <>
+          {/* Payment History */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-medium text-white">Payment History</h2>
+              <Button onClick={() => recordPaymentModal.openModal()}>
+                <Plus className="h-4 w-4 mr-2" />
+                Record Payment
+              </Button>
+            </div>
 
-      {/* Project Updates */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3 }}
-      >
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-medium text-white">Project Updates</h2>
-          <Button onClick={() => addUpdateModal.openModal()}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Update
-          </Button>
-        </div>
-
-        {projectUpdates.length === 0 ? (
-          <EmptyState
-            icon={FileText}
-            title="No updates yet"
-            description="Keep track of project progress by adding updates and milestones"
-            actionLabel="Add First Update"
-            onAction={() => addUpdateModal.openModal()}
-          />
-        ) : (
-          <Card variant="secondary">
-            <div className="p-6">
-              <div className="space-y-3">
-                {updatePagination.visibleItems.map((update, index) => (
-                  <motion.div
-                    key={update.id}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    className="group relative overflow-hidden bg-gradient-to-r from-gray-800/50 to-gray-700/30 rounded-xl border border-gray-600/50 hover:border-gray-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-gray-900/20"
-                  >
-                    <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                    <div className="relative p-4">
-                      <div className="flex items-center space-x-4">
-                        <div className="relative h-12 w-12 bg-gradient-to-br from-blue-500/20 to-blue-600/20 rounded-xl flex items-center justify-center ring-1 ring-blue-500/20 flex-shrink-0">
-                          <FileText className="h-6 w-6 text-blue-400" />
-                          <div className="absolute inset-0 bg-blue-500/10 rounded-xl blur-sm" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex justify-between">
-                            <div className="max-w-xl">
-                              <p className="text-white leading-relaxed text-sm break-words">
-                                {update.description}
-                              </p>
-                              <p className="text-xs text-gray-400 mt-1">
-                                {formatDate(update.created_at)}
-                              </p>
+            {payments.length === 0 ? (
+              <EmptyState
+                icon={CreditCard}
+                title="No payments recorded yet"
+                description="Start tracking payments by adding your first payment record"
+                actionLabel="Add First Payment"
+                onAction={() => recordPaymentModal.openModal()}
+              />
+            ) : (
+              <Card variant="secondary">
+                <div className="p-6">
+                  <div className="space-y-3">
+                    {paymentPagination.visibleItems.map((payment, index) => (
+                      <motion.div
+                        key={payment.id}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.1 }}
+                        className="group relative overflow-hidden bg-gradient-to-r from-gray-800/50 to-gray-700/30 rounded-xl border border-gray-600/50 hover:border-gray-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-gray-900/20"
+                      >
+                        <div className="absolute inset-0 bg-gradient-to-r from-green-500/5 to-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                        <div className="relative p-4">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-4">
+                              <div className="relative h-12 w-12 bg-gradient-to-br from-green-500/20 to-green-600/20 rounded-xl flex items-center justify-center ring-1 ring-green-500/20">
+                                <DollarSign className="h-6 w-6 text-green-400" />
+                                <div className="absolute inset-0 bg-green-500/10 rounded-xl blur-sm" />
+                              </div>
+                              <div>
+                                <p className="text-lg font-semibold text-white mb-1">
+                                  {formatCurrency(payment.amount)}
+                                </p>
+                                <div className="flex items-center space-x-2 text-sm text-gray-400">
+                                  <span className="px-2 py-1 bg-gray-700/50 rounded-md text-xs font-medium">
+                                    {payment.payment_method}
+                                  </span>
+                                  <span>•</span>
+                                  <span>{formatDate(payment.payment_date)}</span>
+                                </div>
+                              </div>
                             </div>
 
                             <ActionButtons
-                              onEdit={() => {}} // No edit for updates in current design
-                              onDelete={() => {
-                                const truncatedDescription = update.description.length > 50 
-                                  ? update.description.substring(0, 50) + "..." 
-                                  : update.description;
-                                deleteDialog.openDialog({
-                                  type: 'update',
-                                  id: update.id,
-                                  name: truncatedDescription
-                                });
-                              }}
+                              onEdit={() => {}} // No edit for payments in current design
+                              onDelete={() => deleteDialog.openDialog({
+                                type: 'payment',
+                                id: payment.id,
+                                name: '',
+                                amount: payment.amount
+                              })}
                               className="opacity-0 group-hover:opacity-100 transition-opacity"
                             />
                           </div>
                         </div>
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
+                      </motion.div>
+                    ))}
+                  </div>
 
-              <PaginationControls
-                hasMore={updatePagination.hasMore}
-                canShowLess={updatePagination.canShowLess}
-                onShowMore={updatePagination.showMore}
-                onShowLess={updatePagination.showLess}
-                visibleCount={updatePagination.visibleCount}
-                totalCount={updatePagination.totalCount}
-                itemName="updates"
-              />
+                  <PaginationControls
+                    hasMore={paymentPagination.hasMore}
+                    canShowLess={paymentPagination.canShowLess}
+                    onShowMore={paymentPagination.showMore}
+                    onShowLess={paymentPagination.showLess}
+                    visibleCount={paymentPagination.visibleCount}
+                    totalCount={paymentPagination.totalCount}
+                    itemName="payments"
+                  />
+                </div>
+              </Card>
+            )}
+          </motion.div>
+
+          {/* Project Updates */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-medium text-white">Project Updates</h2>
+              <Button onClick={() => addUpdateModal.openModal()}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Update
+              </Button>
             </div>
-          </Card>
-        )}
-      </motion.div>
+
+            {projectUpdates.length === 0 ? (
+              <EmptyState
+                icon={FileText}
+                title="No updates yet"
+                description="Keep track of project progress by adding updates and milestones"
+                actionLabel="Add First Update"
+                onAction={() => addUpdateModal.openModal()} 
+              
+              />
+            ) : (
+              <Card variant="secondary ">
+                <div className="p-6">
+                  <div className="space-y-3">
+                    {updatePagination.visibleItems.map((update, index) => (
+                      <motion.div
+                        key={update.id}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.1 }}
+                        className="group relative overflow-hidden bg-gradient-to-r from-gray-800/50 to-gray-700/30 rounded-xl border border-gray-600/50 hover:border-gray-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-gray-900/20"
+                      >
+                        <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                        <div className="relative p-4">
+                          <div className="flex items-center space-x-4">
+                            <div className="relative h-12 w-12 bg-gradient-to-br from-blue-500/20 to-blue-600/20 rounded-xl flex items-center justify-center ring-1 ring-blue-500/20 flex-shrink-0">
+                              <FileText className="h-6 w-6 text-blue-400" />
+                              <div className="absolute inset-0 bg-blue-500/10 rounded-xl blur-sm" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex justify-between">
+                                <div className="max-w-xl">
+                                  <p className="text-white leading-relaxed text-sm break-words">
+                                    {update.description}
+                                  </p>
+                                  <p className="text-xs text-gray-400 mt-1">
+                                    {formatDate(update.created_at)}
+                                  </p>
+                                </div>
+
+                                <ActionButtons
+                                  onEdit={() => {}} // No edit for updates in current design
+                                  onDelete={() => {
+                                    const truncatedDescription = update.description.length > 50 
+                                      ? update.description.substring(0, 50) + "..." 
+                                      : update.description;
+                                    deleteDialog.openDialog({
+                                      type: 'update',
+                                      id: update.id,
+                                      name: truncatedDescription
+                                    });
+                                  }}
+                                  className="opacity-0 group-hover:opacity-100 transition-opacity"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+
+                  <PaginationControls
+                    hasMore={updatePagination.hasMore}
+                    canShowLess={updatePagination.canShowLess}
+                    onShowMore={updatePagination.showMore}
+                    onShowLess={updatePagination.showLess}
+                    visibleCount={updatePagination.visibleCount}
+                    totalCount={updatePagination.totalCount}
+                    itemName="updates"
+                  />
+                </div>
+              </Card>
+            )}
+          </motion.div>
+        </>
+      )}
 
       {/* Edit Project Modal */}
       <ProjectModal
