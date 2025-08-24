@@ -10,7 +10,16 @@ import { clientService } from "../services/database";
 // Define schema based on whether client selection is needed
 const createProjectSchema = (requireClientSelection: boolean) => z.object({
   ...(requireClientSelection && {
-    clientId: z.number({ required_error: "Please select a client" }).min(1, "Please select a client")
+    clientId: z.preprocess(
+      (val) => {
+        if (val === "" || val === undefined || val === null) return undefined;
+        return Number(val);
+      },
+      z.number().min(1, "Select a client").optional()
+    ).refine((val) => val !== undefined, {
+      message: "Select a client",
+    }),
+    
   }),
   title: z.string().min(1, "Project title is required"),
   description: z.string().min(1, "Project description is required"),
@@ -20,6 +29,7 @@ const createProjectSchema = (requireClientSelection: boolean) => z.object({
     required_error: "Please select a project status",
   }),
 });
+
 
 // Project type for editing
 type ProjectForEdit = {

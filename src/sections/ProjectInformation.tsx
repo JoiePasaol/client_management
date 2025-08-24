@@ -45,8 +45,6 @@ import { ConfirmDialog } from "../components/ui/Dialog";
 import { RecordPaymentModal } from "../components/RecordPaymentModal";
 import { AddProjectUpdateModal } from "../components/AddProjectUpdateModal";
 import { ProjectModal } from "../components/ProjectModal";
-
-// Hook imports
 import { useConfirmDialog } from "../hooks/useConfirmDialog";
 import { useModal } from "../hooks/useModal";
 import { usePagination } from "../hooks/usePagination";

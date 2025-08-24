@@ -11,7 +11,6 @@ import { EmptyState } from "../components/common/EmptyState";
 import { SearchAndFilter } from "../components/common/SearchAndFilter";
 import { StatusBadge } from "../components/common/StatusBadge";
 import { ProgressBar } from "../components/common/ProgressBar";
-import { DeadlineInfo } from "../components/common/DeadlineInfo";
 import { ActionButtons } from "../components/common/ActionButtons";
 import { projectService, fileService } from "../services/database";
 import { useNavigate } from "react-router-dom";

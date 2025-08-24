@@ -3,14 +3,9 @@ import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { 
   ArrowLeft, 
-  Mail, 
-  Phone, 
-  MapPin, 
   Edit, 
   Trash2, 
   Plus, 
-  Loader2, 
-  AlertCircle,
   Calendar,
   DollarSign,
   Clock,
@@ -20,64 +15,47 @@ import { Button } from "../components/ui/Button";
 import { ConfirmDialog } from "../components/ui/Dialog";
 import { ProjectModal } from "../components/ProjectModal";
 import { ClientModal } from "../components/ClientModal";
+import { ActionButtons } from "../components/common/ActionButtons";
+import { ContactInfo } from "../components/common/ContactInfo";
+import { EmptyState } from "../components/common/EmptyState";
+import { ErrorState } from "../components/common/ErrorState";
+import { LoadingState } from "../components/common/LoadingState";
+import { StatusBadge } from "../components/common/StatusBadge";
+import { useConfirmDialog } from "../hooks/useConfirmDialog";
+import { useModal } from "../hooks/useModal";
 import { clientService, projectService, fileService } from "../services/database";
 import { useToaster } from "../context/ToasterContext";
+import { formatCurrency, formatDate, parseBudget } from "../utils/formatters";
 import type { ClientWithProjects } from "../lib/supabase";
+
+interface DeleteClientData {
+  clientId: number;
+  clientName: string;
+}
+
+interface DeleteProjectData {
+  projectId: number;
+  projectTitle: string;
+}
 
 export function ClientInformation() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [isAddProjectModalOpen, setIsAddProjectModalOpen] = useState(false);
+  const { showSuccess, showError } = useToaster();
+
+  // State
   const [client, setClient] = useState<ClientWithProjects | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Use global toaster
-  const { showSuccess, showError } = useToaster();
+  // Modals
+  const addProjectModal = useModal();
+  const clientModal = useModal<ClientWithProjects>();
+  const projectModal = useModal<any>();
 
-  // Unified client modal state
-  const [clientModal, setClientModal] = useState<{
-    isOpen: boolean;
-    editingClient: ClientWithProjects | null;
-  }>({
-    isOpen: false,
-    editingClient: null,
-  });
-
-  // Project modal state for editing
-  const [projectModal, setProjectModal] = useState<{
-    isOpen: boolean;
-    editingProject: any | null;
-  }>({
-    isOpen: false,
-    editingProject: null,
-  });
-
-  // Delete client confirmation dialog state
-  const [deleteDialog, setDeleteDialog] = useState<{
-    isOpen: boolean;
-    clientId: number | null;
-    clientName: string;
-    isDeleting: boolean;
-  }>({
-    isOpen: false,
-    clientId: null,
-    clientName: "",
-    isDeleting: false,
-  });
-
-  // Delete project confirmation dialog state
-  const [deleteProjectDialog, setDeleteProjectDialog] = useState<{
-    isOpen: boolean;
-    projectId: number | null;
-    projectTitle: string;
-    isDeleting: boolean;
-  }>({
-    isOpen: false,
-    projectId: null,
-    projectTitle: "",
-    isDeleting: false,
-  });
+  // Confirm dialogs
+  const deleteClientDialog = useConfirmDialog<DeleteClientData>();
+  const deleteProjectDialog = useConfirmDialog<DeleteProjectData>();
 
   useEffect(() => {
     if (id) {
@@ -103,12 +81,10 @@ export function ClientInformation() {
     }
   };
 
+  // Client handlers
   const handleEditClient = (client: ClientWithProjects, e: React.MouseEvent) => {
     e.stopPropagation();
-    setClientModal({
-      isOpen: true,
-      editingClient: client,
-    });
+    clientModal.openModal(client);
   };
 
   const handleUpdateClient = async (clientId: number, clientData: {
@@ -127,15 +103,12 @@ export function ClientInformation() {
         company_name: clientData.companyName,
       });
       
-      setClientModal({ isOpen: false, editingClient: null });
-      
-      // Show success toast
+      clientModal.closeModal();
       showSuccess(
         'Client Updated Successfully',
         `${clientData.fullName}'s information has been updated`
       );
       
-      // Reload client data to show the updated information
       if (client) {
         await loadClientData(client.id);
       }
@@ -150,33 +123,26 @@ export function ClientInformation() {
 
   const handleDeleteClient = (clientId: number, clientName: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    setDeleteDialog({
-      isOpen: true,
-      clientId,
-      clientName,
-      isDeleting: false,
-    });
+    deleteClientDialog.openDialog({ clientId, clientName });
   };
 
   const confirmDeleteClient = async () => {
-    if (!deleteDialog.clientId) return;
+    if (!deleteClientDialog.data) return;
 
     try {
-      setDeleteDialog(prev => ({ ...prev, isDeleting: true }));
+      deleteClientDialog.setLoading(true);
       
-      await clientService.deleteClient(deleteDialog.clientId);
+      await clientService.deleteClient(deleteClientDialog.data.clientId);
       
-      // Show success toast
       showError(
         'Client Deleted',
-        `${deleteDialog.clientName} has been permanently removed`
+        `${deleteClientDialog.data.clientName} has been permanently removed`
       );
       
-      // Navigate back to clients page after successful deletion
       navigate('/clients');
     } catch (err) {
       console.error("Error deleting client:", err);
-      setDeleteDialog(prev => ({ ...prev, isDeleting: false }));
+      deleteClientDialog.setLoading(false);
       showError(
         'Failed to Delete Client',
         err instanceof Error ? err.message : 'An unexpected error occurred'
@@ -184,21 +150,7 @@ export function ClientInformation() {
     }
   };
 
-  const closeDeleteDialog = () => {
-    if (!deleteDialog.isDeleting) {
-      setDeleteDialog({
-        isOpen: false,
-        clientId: null,
-        clientName: "",
-        isDeleting: false,
-      });
-    }
-  };
-
-  const closeClientModal = () => {
-    setClientModal({ isOpen: false, editingClient: null });
-  };
-
+  // Project handlers
   const handleAddProject = async (projectData: {
     title: string;
     description: string;
@@ -212,32 +164,26 @@ export function ClientInformation() {
     try {
       let invoiceUrl;
       
-      // First create the project
       const newProject = await projectService.createProject({
         client_id: client.id,
         title: projectData.title,
         description: projectData.description,
         deadline: projectData.deadline,
-        budget: parseFloat(projectData.budget.replace(/[^0-9.-]+/g, "")),
+        budget: parseBudget(projectData.budget),
         status: projectData.status,
       });
 
-      // Then upload invoice if provided
       if (projectData.invoice) {
         invoiceUrl = await fileService.uploadInvoice(projectData.invoice, newProject.id);
-        // Update project with invoice URL
         await projectService.updateProject(newProject.id, { invoice_url: invoiceUrl });
       }
 
-      setIsAddProjectModalOpen(false);
-      
-      // Show success toast
+      addProjectModal.closeModal();
       showSuccess(
         'Project Added Successfully',
         `${projectData.title} has been added to ${client.full_name}'s projects`
       );
       
-      // Reload client data to show the new project
       await loadClientData(client.id);
     } catch (err) {
       console.error("Error adding project:", err);
@@ -248,11 +194,9 @@ export function ClientInformation() {
     }
   };
 
-  // Project edit handler
   const handleEditProject = (project: any, e: React.MouseEvent) => {
     e.stopPropagation();
     
-    // Transform the project data to match the expected format for editing
     const editingProject = {
       id: project.id,
       title: project.title,
@@ -268,13 +212,9 @@ export function ClientInformation() {
       },
     };
 
-    setProjectModal({
-      isOpen: true,
-      editingProject,
-    });
+    projectModal.openModal(editingProject);
   };
 
-  // Project update handler
   const handleUpdateProject = async (projectId: number, projectData: {
     title: string;
     description: string;
@@ -286,30 +226,25 @@ export function ClientInformation() {
     try {
       let invoiceUrl = undefined;
 
-      // Upload new invoice if provided
       if (projectData.invoice) {
         invoiceUrl = await fileService.uploadInvoice(projectData.invoice, projectId);
       }
 
-      // Update project
       await projectService.updateProject(projectId, {
         title: projectData.title,
         description: projectData.description,
         deadline: projectData.deadline,
-        budget: parseFloat(projectData.budget.replace(/[^0-9.-]+/g, "")),
+        budget: parseBudget(projectData.budget),
         status: projectData.status,
         ...(invoiceUrl && { invoice_url: invoiceUrl }),
       });
 
-      setProjectModal({ isOpen: false, editingProject: null });
-
-      // Show success toast
+      projectModal.closeModal();
       showSuccess(
         'Project Updated Successfully',
         `${projectData.title} has been updated`
       );
 
-      // Reload client data to show the updated project
       if (client) {
         await loadClientData(client.id);
       }
@@ -322,45 +257,32 @@ export function ClientInformation() {
     }
   };
 
-  // Project delete handler
   const handleDeleteProject = (projectId: number, projectTitle: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    setDeleteProjectDialog({
-      isOpen: true,
-      projectId,
-      projectTitle,
-      isDeleting: false,
-    });
+    deleteProjectDialog.openDialog({ projectId, projectTitle });
   };
 
   const confirmDeleteProject = async () => {
-    if (!deleteProjectDialog.projectId) return;
+    if (!deleteProjectDialog.data) return;
 
     try {
-      setDeleteProjectDialog(prev => ({ ...prev, isDeleting: true }));
+      deleteProjectDialog.setLoading(true);
       
-      await projectService.deleteProject(deleteProjectDialog.projectId);
+      await projectService.deleteProject(deleteProjectDialog.data.projectId);
       
-      // Show toast for deletion
       showError(
         'Project Deleted',
-        `${deleteProjectDialog.projectTitle} has been permanently removed`
+        `${deleteProjectDialog.data.projectTitle} has been permanently removed`
       );
 
-      // Reload client data to reflect the deletion
       if (client) {
         await loadClientData(client.id);
       }
       
-      setDeleteProjectDialog({
-        isOpen: false,
-        projectId: null,
-        projectTitle: "",
-        isDeleting: false,
-      });
+      deleteProjectDialog.closeDialog();
     } catch (err) {
       console.error("Error deleting project:", err);
-      setDeleteProjectDialog(prev => ({ ...prev, isDeleting: false }));
+      deleteProjectDialog.setLoading(false);
       showError(
         'Failed to Delete Project',
         err instanceof Error ? err.message : 'An unexpected error occurred'
@@ -368,45 +290,9 @@ export function ClientInformation() {
     }
   };
 
-  const closeDeleteProjectDialog = () => {
-    if (!deleteProjectDialog.isDeleting) {
-      setDeleteProjectDialog({
-        isOpen: false,
-        projectId: null,
-        projectTitle: "",
-        isDeleting: false,
-      });
-    }
-  };
-
-  const closeProjectModal = () => {
-    setProjectModal({ isOpen: false, editingProject: null });
-  };
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
-    }).format(amount);
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
-  };
-
+  // Render states
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="flex items-center space-x-3 text-gray-300">
-          <Loader2 className="h-6 w-6 animate-spin" />
-          <p>Loading client data...</p>
-        </div>
-      </div>
-    );
+    return <LoadingState message="Loading client data..." />;
   }
 
   if (error || !client) {
@@ -429,22 +315,17 @@ export function ClientInformation() {
           </div>
         </motion.div>
 
-        <div className="flex items-center justify-center min-h-[300px]">
-          <Card className="p-8 text-center max-w-md">
-            <AlertCircle className="h-12 w-12 text-red-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-white mb-2">
-              {error === 'Client not found' ? 'Client Not Found' : 'Error Loading Client'}
-            </h3>
-            <p className="text-gray-400 mb-4">{error}</p>
-            <Button onClick={() => navigate('/clients')} variant="secondary">
-              Back to Clients
-            </Button>
-          </Card>
-        </div>
+        <ErrorState
+          title={error === 'Client not found' ? 'Client Not Found' : 'Error Loading Client'}
+          message={error || 'Unknown error'}
+          onRetry={() => navigate('/clients')}
+          retryLabel="Back to Clients"
+        />
       </div>
     );
   }
 
+  // Calculate statistics
   const totalRevenue = client.projects.reduce((sum, project) => sum + project.budget, 0);
   const activeProjects = client.projects.filter(project => project.status === 'Started').length;
   const completedProjects = client.projects.filter(project => project.status === 'Finished').length;
@@ -477,34 +358,23 @@ export function ClientInformation() {
       >
         <Card className="p-8">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+            {/* Contact Information */}
             <div>
               <h3 className="text-sm font-medium text-gray-400 mb-3">
                 Contact Information
               </h3>
-        
-              <p className="text-white font-medium text-lg">
-                {client.full_name}
-              </p>
-              <p className="text-gray-400 font-medium text-md">
-                {client.company_name}
-              </p>
-               
-              <div className="space-y-4 mt-4">
-                <div className="flex items-center space-x-3 text-gray-300">
-                  <Mail className="h-4 w-4 text-gray-400 flex-shrink-0" />
-                  <span className="text-sm">{client.email}</span>
-                </div>
-                <div className="flex items-center space-x-3 text-gray-300">
-                  <Phone className="h-4 w-4 text-gray-400 flex-shrink-0" />
-                  <span className="text-sm">{client.phone_number}</span>
-                </div>
-                <div className="flex items-center space-x-3 text-gray-300">
-                  <MapPin className="h-4 w-4 text-gray-400 flex-shrink-0" />
-                  <span className="text-sm">{client.address}</span>
-                </div>
+              <div className="mb-4">
+                <p className="text-white font-medium text-lg">{client.full_name}</p>
+                <p className="text-gray-400 font-medium text-md">{client.company_name}</p>
               </div>
+              <ContactInfo
+                email={client.email}
+                phoneNumber={client.phone_number}
+                address={client.address}
+              />
             </div>
 
+            {/* Projects Statistics */}
             <div>
               <h3 className="text-sm font-medium text-gray-400 mb-4">
                 Projects
@@ -522,6 +392,7 @@ export function ClientInformation() {
               </div>
             </div>
 
+            {/* Revenue */}
             <div>
               <h3 className="text-sm font-medium text-gray-400 mb-4">
                 Revenue
@@ -531,6 +402,7 @@ export function ClientInformation() {
               </p>
             </div>
 
+            {/* Actions */}
             <div>
               <h3 className="text-sm font-medium text-gray-400 mb-4">
                 Actions
@@ -569,7 +441,7 @@ export function ClientInformation() {
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-bold text-white">Projects</h2>
           <Button
-            onClick={() => setIsAddProjectModalOpen(true)}
+            onClick={() => addProjectModal.openModal()}
             className="flex items-center space-x-2"
           >
             <Plus className="h-4 w-4" />
@@ -578,164 +450,136 @@ export function ClientInformation() {
         </div>
 
         {client.projects.length === 0 ? (
-          <Card className="p-8 text-center">
-            <h3 className="text-lg font-medium text-white mb-2">No projects yet</h3>
-            <p className="text-gray-400 mb-4">
-              Get started by adding the first project for {client.full_name}
-            </p>
-            <Button onClick={() => setIsAddProjectModalOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add First Project
-            </Button>
-          </Card>
+          <EmptyState
+            icon={Plus}
+            title="No projects yet"
+            description={`Get started by adding the first project for ${client.full_name}`}
+            actionLabel="Add First Project"
+            onAction={() => addProjectModal.openModal()}
+          />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-           {client.projects.map((project, index) => (
-  <motion.div
-    key={project.id}
-    initial={{ opacity: 0, y: 20 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ delay: 0.1 * index }}
-  >
-    <div
-      className="cursor-pointer"
-      onClick={() => {
-        console.log('Navigating to project:', project.id);
-        navigate(`/projects/${project.id}`);
-      }}
-    >
-      <Card className="p-6 hover:bg-gray-700/50 transition-colors">
-        <div className="flex justify-between items-start mb-4">
-          <div>
-            <h3 className="font-medium text-white text-lg mb-1">
-              {project.title}
-            </h3>
-            <span
-              className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                project.status === "Started"
-                  ? "bg-blue-500/10 text-blue-400 border border-blue-500/20"
-                  : "bg-green-500/10 text-green-400 border border-green-500/20"
-              }`}
-            >
-              {project.status}
-            </span>
-          </div>
-          <div className="flex space-x-1">
-            <button
-              className="p-1 text-gray-400 hover:text-blue-400 transition-colors z-10 relative"
-              onClick={(e) => handleEditProject(project, e)}
-              title="Edit project"
-            >
-              <Edit className="h-4 w-4" />
-            </button>
-            <button
-              className="p-1 text-gray-400 hover:text-red-400 transition-colors z-10 relative"
-              onClick={(e) => handleDeleteProject(project.id, project.title, e)}
-              title="Delete project"
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-
-        <p className="text-gray-300 text-sm mb-4 line-clamp-2">
-          {project.description}
-        </p>
-
-        <div className="space-y-3">
-          <div className="flex items-center space-x-3 text-sm">
-            <Calendar className="h-4 w-4 text-gray-400" />
-            <span className="text-gray-300">
-              Due: {formatDate(project.deadline)}
-            </span>
-          </div>
-
-          <div className="flex items-center space-x-3 text-sm">
-            <DollarSign className="h-4 w-4 text-gray-400" />
-            <span className="text-gray-300">
-              {formatCurrency(project.budget)}
-            </span>
-          </div>
-
-          <div className="flex items-center space-x-3 text-sm">
-            <Clock className="h-4 w-4 text-gray-400" />
-            <span className="text-gray-300">
-              Created: {formatDate(project.created_at)}
-            </span>
-          </div>
-
-          {project.invoice_url && (
-            <div className="pt-2 border-t border-gray-700">
-              <a
-                href={project.invoice_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center text-sm text-blue-400 hover:text-blue-300 transition-colors"
-                onClick={(e) => e.stopPropagation()} // Prevent navigation when clicking invoice
+            {client.projects.map((project, index) => (
+              <motion.div
+                key={project.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 * index }}
               >
-                View Invoice →
-              </a>
-            </div>
-          )}
-        </div>
-      </Card>
-    </div>
-  </motion.div>
-))}
+                <div
+                  className="cursor-pointer"
+                  onClick={() => navigate(`/projects/${project.id}`)}
+                >
+                  <Card className="p-6 hover:bg-gray-700/50 transition-colors">
+                    <div className="flex justify-between items-start mb-4">
+                      <div>
+                        <h3 className="font-medium text-white text-lg mb-1">
+                          {project.title}
+                        </h3>
+                        <StatusBadge status={project.status} />
+                      </div>
+                      <ActionButtons
+                        onEdit={(e) => handleEditProject(project, e)}
+                        onDelete={(e) => handleDeleteProject(project.id, project.title, e)}
+                        className="z-10 relative"
+                      />
+                    </div>
+
+                    <p className="text-gray-300 text-sm mb-4 line-clamp-2">
+                      {project.description}
+                    </p>
+
+                    <div className="space-y-3">
+                      <div className="flex items-center space-x-3 text-sm">
+                        <Calendar className="h-4 w-4 text-gray-400" />
+                        <span className="text-gray-300">
+                          Due: {formatDate(project.deadline)}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center space-x-3 text-sm">
+                        <DollarSign className="h-4 w-4 text-gray-400" />
+                        <span className="text-gray-300">
+                          {formatCurrency(project.budget)}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center space-x-3 text-sm">
+                        <Clock className="h-4 w-4 text-gray-400" />
+                        <span className="text-gray-300">
+                          Created: {formatDate(project.created_at)}
+                        </span>
+                      </div>
+
+                      {project.invoice_url && (
+                        <div className="pt-2 border-t border-gray-700">
+                          <a
+                            href={project.invoice_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center text-sm text-blue-400 hover:text-blue-300 transition-colors"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            View Invoice →
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  </Card>
+                </div>
+              </motion.div>
+            ))}
           </div>
         )}
       </motion.div>
 
-      {/* Add Project Modal */}
+      {/* Modals */}
       <ProjectModal
-        isOpen={isAddProjectModalOpen}
-        onClose={() => setIsAddProjectModalOpen(false)}
+        isOpen={addProjectModal.isOpen}
+        onClose={addProjectModal.closeModal}
         onSubmit={handleAddProject}
         clientName={client.full_name}
-        clientId={client.id} 
+        clientId={client.id}
       />
 
-      {/* Edit Project Modal */}
       <ProjectModal
         isOpen={projectModal.isOpen}
-        onClose={closeProjectModal}
-        onSubmit={() => {}} // Not used for editing
+        onClose={projectModal.closeModal}
+        onSubmit={() => {}}
         onUpdate={handleUpdateProject}
-        editingProject={projectModal.editingProject}
+        editingProject={projectModal.data}
       />
 
-      {/* Unified Client Modal (for both add and edit) */}
       <ClientModal
         isOpen={clientModal.isOpen}
-        onClose={closeClientModal}
-        onSubmit={() => {}} // Not used for editing
+        onClose={clientModal.closeModal}
+        onSubmit={() => {}}
         onUpdate={handleUpdateClient}
-        editingClient={clientModal.editingClient}
+        editingClient={clientModal.data}
       />
 
-      {/* Delete Client Confirmation Dialog */}
+      {/* Confirmation Dialogs */}
       <ConfirmDialog
-        isOpen={deleteDialog.isOpen}
-        onClose={closeDeleteDialog}
+        isOpen={deleteClientDialog.isOpen}
+        onClose={deleteClientDialog.closeDialog}
         onConfirm={confirmDeleteClient}
         title="Delete Client"
-        message={`Are you sure you want to delete "${deleteDialog.clientName}"? This action will permanently remove the client and all associated projects. This cannot be undone.`}
+        message={`Are you sure you want to delete "${deleteClientDialog.data?.clientName}"? This action will permanently remove the client and all associated projects. This cannot be undone.`}
         confirmText="Yes, Delete"
         cancelText="Cancel"
-        isLoading={deleteDialog.isDeleting}
+        isLoading={deleteClientDialog.isLoading}
         variant="danger"
       />
 
-      {/* Delete Project Confirmation Dialog */}
       <ConfirmDialog
         isOpen={deleteProjectDialog.isOpen}
-        onClose={closeDeleteProjectDialog}
+        onClose={deleteProjectDialog.closeDialog}
         onConfirm={confirmDeleteProject}
         title="Delete Project"
-        message={`Are you sure you want to delete "${deleteProjectDialog.projectTitle}"? This action will permanently remove the project and all associated data. This cannot be undone.`}
+        message={`Are you sure you want to delete "${deleteProjectDialog.data?.projectTitle}"? This action will permanently remove the project and all associated data. This cannot be undone.`}
         confirmText="Yes, Delete"
         cancelText="Cancel"
-        isLoading={deleteProjectDialog.isDeleting}
+        isLoading={deleteProjectDialog.isLoading}
         variant="danger"
       />
     </div>

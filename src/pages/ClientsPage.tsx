@@ -85,7 +85,7 @@ export function ClientsPage() {
         company_name: clientData.companyName,
       });
       
-      setClientModalOpen(false);
+      addClientModal.closeModal();
       
       // Show success toast
       showSuccess(
@@ -233,7 +233,7 @@ export function ClientsPage() {
          
         </div>
         <Button
-          onClick={() => setClientModalOpen(true)}
+          onClick={() => addClientModal.openModal()}
           className="flex items-center space-x-2"
         >
           <Plus className="h-4 w-4" />
