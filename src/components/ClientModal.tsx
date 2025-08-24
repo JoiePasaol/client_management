@@ -15,26 +15,33 @@ const clientSchema = z.object({
 
 type ClientForm = z.infer<typeof clientSchema>;
 
-interface EditClientModalProps {
+// Client type for editing
+type ClientForEdit = {
+  id: number;
+  full_name: string;
+  email: string;
+  phone_number: string;
+  address: string;
+  company_name: string;
+};
+
+interface ClientModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (data: ClientForm) => void;
-  client?: {
-    id: number;
-    full_name: string;
-    email: string;
-    phone_number: string;
-    address: string;
-    company_name: string;
-  } | null;
+  onUpdate?: (clientId: number, data: ClientForm) => void;
+  editingClient?: ClientForEdit; // If provided, we're editing this client
 }
 
-export function EditClientModal({
+export function ClientModal({
   isOpen,
   onClose,
   onSubmit,
-  client,
-}: EditClientModalProps) {
+  onUpdate,
+  editingClient,
+}: ClientModalProps) {
+  const isEditing = !!editingClient;
+  
   const {
     register,
     handleSubmit,
@@ -45,24 +52,38 @@ export function EditClientModal({
     resolver: zodResolver(clientSchema),
   });
 
-  // Populate form with existing client data when modal opens
+  // Set form values when editing
   useEffect(() => {
-    if (isOpen && client) {
-      setValue("fullName", client.full_name);
-      setValue("email", client.email);
-      setValue("phoneNumber", client.phone_number);
-      setValue("address", client.address);
-      setValue("companyName", client.company_name);
+    if (isOpen && editingClient) {
+      setValue("fullName", editingClient.full_name);
+      setValue("email", editingClient.email);
+      setValue("phoneNumber", editingClient.phone_number);
+      setValue("address", editingClient.address);
+      setValue("companyName", editingClient.company_name);
     }
-  }, [isOpen, client, setValue]);
+  }, [isOpen, editingClient, setValue]);
+
+  // Reset form when modal opens for new client
+  useEffect(() => {
+    if (isOpen && !editingClient) {
+      reset();
+    }
+  }, [isOpen, editingClient, reset]);
 
   const handleFormSubmit = async (data: ClientForm) => {
     try {
-      await onSubmit(data);
+      if (isEditing && editingClient && onUpdate) {
+        // Handle update
+        await onUpdate(editingClient.id, data);
+      } else {
+        // Handle create
+        await onSubmit(data);
+      }
+      
       reset();
       onClose();
     } catch (error) {
-      console.error("Error updating client:", error);
+      console.error(`Error ${isEditing ? 'updating' : 'adding'} client:`, error);
     }
   };
 
@@ -71,8 +92,16 @@ export function EditClientModal({
     onClose();
   };
 
+  // Determine modal title
+  const getModalTitle = () => {
+    if (isEditing) {
+      return `Edit Client: ${editingClient?.full_name}`;
+    }
+    return "Add New Client";
+  };
+
   return (
-    <Modal isOpen={isOpen} onClose={handleClose} title="Edit Client">
+    <Modal isOpen={isOpen} onClose={handleClose} title={getModalTitle()}>
       {/* Scrollable content area */}
       <div className="overflow-y-auto max-h-[calc(90vh-8rem)]">
         <form
@@ -89,7 +118,7 @@ export function EditClientModal({
             <input
               {...register("fullName")}
               type="text"
-              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 bg-gray-700 focus:outline-none border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="Enter full name"
             />
             {errors.fullName && (
@@ -109,7 +138,7 @@ export function EditClientModal({
             <input
               {...register("email")}
               type="email"
-              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 bg-gray-700 focus:outline-none border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="Enter email address"
             />
             {errors.email && (
@@ -129,7 +158,7 @@ export function EditClientModal({
             <input
               {...register("phoneNumber")}
               type="tel"
-              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 bg-gray-700 focus:outline-none border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="Enter phone number"
             />
             {errors.phoneNumber && (
@@ -149,7 +178,7 @@ export function EditClientModal({
             <input
               {...register("address")}
               type="text"
-              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 bg-gray-700 focus:outline-none border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="Enter address or city"
             />
             {errors.address && (
@@ -169,7 +198,7 @@ export function EditClientModal({
             <input
               {...register("companyName")}
               type="text"
-              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 bg-gray-700 focus:outline-none border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="Enter company name"
             />
             {errors.companyName && (
@@ -195,7 +224,10 @@ export function EditClientModal({
               disabled={isSubmitting}
               className="flex-1"
             >
-              {isSubmitting ? "Updating Client..." : "Update Client"}
+              {isSubmitting 
+                ? (isEditing ? "Updating Client..." : "Adding Client...") 
+                : (isEditing ? "Update Client" : "Add Client")
+              }
             </Button>
           </div>
         </form>

@@ -21,12 +21,30 @@ const createProjectSchema = (requireClientSelection: boolean) => z.object({
   }),
 });
 
-interface AddProjectModalProps {
+// Project type for editing
+type ProjectForEdit = {
+  id: number;
+  title: string;
+  description: string;
+  deadline: string;
+  budget: number;
+  status: "Started" | "Finished";
+  invoice_url?: string;
+  client: {
+    id: number;
+    full_name: string;
+    company_name: string;
+  };
+};
+
+interface ProjectModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (data: any & { invoice?: File }) => void;
+  onUpdate?: (projectId: number, data: any & { invoice?: File }) => void;
   clientName?: string; // If provided, we're adding to a specific client
   clientId?: number; // If provided, we're adding to a specific client
+  editingProject?: ProjectForEdit; // If provided, we're editing this project
 }
 
 type ClientOption = {
@@ -35,21 +53,25 @@ type ClientOption = {
   company_name: string;
 };
 
-export function AddProjectModal({
+export function ProjectModal({
   isOpen,
   onClose,
   onSubmit,
+  onUpdate,
   clientName,
   clientId,
-}: AddProjectModalProps) {
+  editingProject,
+}: ProjectModalProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const [clients, setClients] = useState<ClientOption[]>([]);
   const [loadingClients, setLoadingClients] = useState(false);
   const [clientDropdownOpen, setClientDropdownOpen] = useState(false);
 
-  // Determine if we need client selection (when clientId is not provided)
-  const needsClientSelection = !clientId;
+  // Determine if we need client selection
+  const needsClientSelection = !clientId && !editingProject;
+  const isEditing = !!editingProject;
+  
   const projectSchema = createProjectSchema(needsClientSelection);
   type ProjectForm = z.infer<typeof projectSchema>;
 
@@ -63,11 +85,10 @@ export function AddProjectModal({
     clearErrors,
   } = useForm<ProjectForm>({
     resolver: zodResolver(projectSchema),
-    defaultValues: needsClientSelection ? {} : { clientId },
   });
 
   const watchedStatus = watch("status");
-  const watchedClientId = needsClientSelection ? watch("clientId" as keyof ProjectForm) : clientId;
+  const watchedClientId = needsClientSelection ? watch("clientId" as keyof ProjectForm) : (clientId || editingProject?.client.id);
 
   // Load clients when modal opens and client selection is needed
   useEffect(() => {
@@ -75,6 +96,29 @@ export function AddProjectModal({
       loadClients();
     }
   }, [isOpen, needsClientSelection]);
+
+  // Set form values when editing
+  useEffect(() => {
+    if (isOpen && editingProject) {
+      setValue("title", editingProject.title);
+      setValue("description", editingProject.description);
+      setValue("deadline", editingProject.deadline);
+      setValue("budget", `$${editingProject.budget.toLocaleString()}`);
+      setValue("status", editingProject.status);
+      
+      // Don't need to set clientId as it's handled by the existing client
+    }
+  }, [isOpen, editingProject, setValue]);
+
+  // Reset form when modal closes or opens for new project
+  useEffect(() => {
+    if (isOpen && !editingProject) {
+      reset({
+        ...(clientId && { clientId }),
+      });
+      setSelectedFile(null);
+    }
+  }, [isOpen, editingProject, clientId, reset]);
 
   const loadClients = async () => {
     try {
@@ -94,19 +138,28 @@ export function AddProjectModal({
 
   const handleFormSubmit = async (data: ProjectForm) => {
     try {
-      // Add clientId to the data if it's not already there (for pre-selected clients)
-      const submitData = {
-        ...data,
-        ...(clientId && { clientId }),
-        invoice: selectedFile || undefined
-      };
+      if (isEditing && editingProject && onUpdate) {
+        // Handle update
+        const updateData = {
+          ...data,
+          invoice: selectedFile || undefined
+        };
+        await onUpdate(editingProject.id, updateData);
+      } else {
+        // Handle create
+        const submitData = {
+          ...data,
+          ...(clientId && { clientId }),
+          invoice: selectedFile || undefined
+        };
+        await onSubmit(submitData);
+      }
       
-      await onSubmit(submitData);
       reset();
       setSelectedFile(null);
       onClose();
     } catch (error) {
-      console.error("Error adding project:", error);
+      console.error(`Error ${isEditing ? 'updating' : 'adding'} project:`, error);
     }
   };
 
@@ -168,23 +221,42 @@ export function AddProjectModal({
     : null;
 
   // Determine modal title
-  const modalTitle = clientName 
-    ? `Add Project for ${clientName}` 
-    : "Add New Project";
+  const getModalTitle = () => {
+    if (isEditing) {
+      return `Edit Project: ${editingProject?.title}`;
+    }
+    if (clientName) {
+      return `Add Project for ${clientName}`;
+    }
+    return "Add New Project";
+  };
+
+  // Get current client info for display
+  const getCurrentClient = () => {
+    if (editingProject) {
+      return editingProject.client;
+    }
+    if (selectedClient) {
+      return selectedClient;
+    }
+    return null;
+  };
+
+  const currentClient = getCurrentClient();
 
   return (
     <Modal
       isOpen={isOpen}
       onClose={handleClose}
-      title={modalTitle}
+      title={getModalTitle()}
     >
       <div className="overflow-y-auto max-h-[calc(90vh-8rem)]">
         <form
           onSubmit={handleSubmit(handleFormSubmit)}
           className="space-y-6 p-6"
         >
-          {/* Client Selection - Only show when clientId is not provided */}
-          {needsClientSelection && (
+          {/* Client Selection - Only show when needed and not editing */}
+          {needsClientSelection && !isEditing && (
             <div>
               <label className="block text-sm font-medium text-gray-200 mb-2">
                 Select Client
@@ -193,7 +265,7 @@ export function AddProjectModal({
                 <button
                   type="button"
                   onClick={() => setClientDropdownOpen(!clientDropdownOpen)}
-                  className={`w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-left flex items-center justify-between focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                  className={`w-full px-3 py-2 bg-gray-700 focus:outline-none border border-gray-600 rounded-lg text-left flex items-center justify-between focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
                     selectedClient ? 'text-white' : 'text-gray-400'
                   }`}
                 >
@@ -216,7 +288,7 @@ export function AddProjectModal({
                 </button>
 
                 {clientDropdownOpen && (
-                  <div className="absolute z-50 w-full mt-1 bg-gray-700 border border-gray-600 rounded-lg shadow-lg max-h-60 overflow-auto">
+                  <div className="absolute z-50 w-full mt-1 bg-gray-700 focus:outline-none border border-gray-600 rounded-lg shadow-lg max-h-60 overflow-auto">
                     {loadingClients ? (
                       <div className="px-3 py-2 text-gray-400 text-center">Loading clients...</div>
                     ) : clients.length === 0 ? (
@@ -227,7 +299,7 @@ export function AddProjectModal({
                           key={client.id}
                           type="button"
                           onClick={() => handleClientSelect(client.id)}
-                          className="w-full px-3 py-2 text-left hover:bg-gray-600 focus:bg-gray-600 focus:outline-none transition-colors"
+                          className="w-full px-3 py-2 text-left hover:bg-gray-800 focus:bg-gray-800 focus:outline-none transition-colors"
                         >
                           <div className="text-white">{client.full_name}</div>
                           <div className="text-gray-400 text-sm">{client.company_name}</div>
@@ -245,6 +317,22 @@ export function AddProjectModal({
             </div>
           )}
 
+          {/* Show current client info when editing or have pre-selected client */}
+          {(isEditing || clientName) && currentClient && (
+            <div className="bg-gray-700/30 rounded-lg p-3 border border-gray-600">
+              <label className="block text-sm font-medium text-gray-200 mb-1">
+                Client
+              </label>
+              <div className="flex items-center space-x-3">
+                <User className="h-4 w-4 text-gray-400" />
+                <div>
+                  <span className="text-white">{currentClient.full_name}</span>
+                  <span className="text-gray-400 text-sm ml-2">• {currentClient.company_name}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div>
             <label
               htmlFor="title"
@@ -255,7 +343,7 @@ export function AddProjectModal({
             <input
               {...register("title")}
               type="text"
-              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 bg-gray-700 focus:outline-none border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="Enter project title"
             />
             {errors.title && (
@@ -275,7 +363,7 @@ export function AddProjectModal({
             <textarea
               {...register("description")}
               rows={4}
-              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+              className="w-full px-3 py-2 bg-gray-700 focus:outline-none border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
               placeholder="Enter project description"
             />
             {errors.description && (
@@ -296,7 +384,7 @@ export function AddProjectModal({
               <input
                 {...register("deadline")}
                 type="date"
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 bg-gray-700 focus:outline-none border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent [&::-webkit-calendar-picker-indicator]:filter [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:opacity-60"
               />
               {errors.deadline && (
                 <p className="mt-2 text-sm text-red-400">
@@ -315,7 +403,7 @@ export function AddProjectModal({
               <input
                 {...register("budget")}
                 type="text"
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 bg-gray-700 focus:outline-none border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="e.g., $10,000"
               />
               {errors.budget && (
@@ -384,8 +472,32 @@ export function AddProjectModal({
 
           <div>
             <label className="block text-sm font-medium text-gray-200 mb-2">
-              Invoice Upload (Optional)
+              {isEditing && editingProject?.invoice_url ? "Update Invoice (Optional)" : "Invoice Upload (Optional)"}
             </label>
+            
+            {/* Show current invoice if editing and has one */}
+            {isEditing && editingProject?.invoice_url && !selectedFile && (
+              <div className="mb-3 p-3 bg-gray-700/30 rounded-lg border border-gray-600">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <FileText className="h-5 w-5 text-blue-400" />
+                    <div>
+                      <p className="text-sm text-white">Current Invoice</p>
+                      <p className="text-xs text-gray-400">PDF file attached</p>
+                    </div>
+                  </div>
+                  <a
+                    href={editingProject.invoice_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-400 hover:text-blue-300 text-sm transition-colors"
+                  >
+                    View →
+                  </a>
+                </div>
+              </div>
+            )}
+
             <div
               className={`relative border-2 border-dashed rounded-lg p-6 transition-all duration-200 ${
                 dragActive
@@ -429,7 +541,10 @@ export function AddProjectModal({
                 <div className="text-center py-2">
                   <Upload className="h-10 w-10 text-gray-400 mx-auto mb-3" />
                   <p className="text-sm text-gray-300 mb-2">
-                    Drop your PDF invoice here or click to browse
+                    {isEditing && editingProject?.invoice_url 
+                      ? "Drop a new PDF invoice here to replace current one" 
+                      : "Drop your PDF invoice here or click to browse"
+                    }
                   </p>
                   <p className="text-xs text-gray-500">
                     PDF files only, up to 10MB
@@ -437,26 +552,29 @@ export function AddProjectModal({
                 </div>
               )}
             </div>
-            <div className="flex space-x-3 pt-4 mt-2 flex-shrink-0">
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={handleClose}
-                className="flex-1"
-                disabled={isSubmitting}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                loading={isSubmitting}
-                disabled={isSubmitting}
-                className="flex-1"
-                onClick={handleSubmit(handleFormSubmit)}
-              >
-                {isSubmitting ? "Adding Project..." : "Add Project"}
-              </Button>
-            </div>
+          </div>
+
+          <div className="flex space-x-3 pt-4 mt-2 flex-shrink-0">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={handleClose}
+              className="flex-1"
+              disabled={isSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              loading={isSubmitting}
+              disabled={isSubmitting}
+              className="flex-1"
+            >
+              {isSubmitting 
+                ? (isEditing ? "Updating Project..." : "Adding Project...") 
+                : (isEditing ? "Update Project" : "Add Project")
+              }
+            </Button>
           </div>
         </form>
       </div>

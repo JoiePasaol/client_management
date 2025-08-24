@@ -4,28 +4,25 @@ import {
   FolderOpen,
   Plus,
   Calendar,
-  Users,
   DollarSign,
   Loader2,
   AlertCircle,
   Search,
   Filter,
+  Clock,
   Edit,
   Trash2,
 } from "lucide-react";
 import { Card } from "../components/ui/Card";
 import { Button } from "../components/ui/Button";
 import { ConfirmDialog } from "../components/ui/Dialog";
-import { AddProjectModal } from "../components/AddProjectModal";
-import {
-  clientService,
-  projectService,
-  fileService,
-} from "../services/database";
+import { ProjectModal } from "../components/ProjectModal";
+import { projectService, fileService } from "../services/database";
+import { useNavigate } from "react-router-dom";
 import { useToaster } from "../context/ToasterContext";
 
-// Project with client info type
-type ProjectWithClient = {
+// Project with client info and payment stats type
+type ProjectWithClientAndStats = {
   id: number;
   title: string;
   description: string;
@@ -39,14 +36,17 @@ type ProjectWithClient = {
     full_name: string;
     company_name: string;
   };
+  payment_count: number;
+  total_paid: number;
+  update_count: number;
 };
 
 export function ProjectsPage() {
-  const [projects, setProjects] = useState<ProjectWithClient[]>([]);
+  const [projects, setProjects] = useState<ProjectWithClientAndStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [isAddProjectModalOpen, setIsAddProjectModalOpen] = useState(false);
+  const [ProjectModalOpen, setProjectModalOpen] = useState(false);
 
   // Use global toaster
   const { showSuccess, showError } = useToaster();
@@ -64,17 +64,28 @@ export function ProjectsPage() {
     isDeleting: false,
   });
 
+  // Edit project dialog state - Fixed variable names
+  const [editDialog, setEditDialog] = useState<{
+    isOpen: boolean;
+    project: ProjectWithClientAndStats | null;
+  }>({
+    isOpen: false,
+    project: null,
+  });
+
   useEffect(() => {
     loadProjects();
   }, []);
+
+  const navigate = useNavigate();
 
   const loadProjects = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      // Use the optimized method to get all projects with client info
-      const allProjects = await projectService.getAllProjectsWithClients();
+      // Use the enhanced method to get all projects with client info AND payment stats
+      const allProjects = await projectService.getAllProjectsWithStats();
       setProjects(allProjects);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load projects");
@@ -118,7 +129,7 @@ export function ProjectsPage() {
         });
       }
 
-      setIsAddProjectModalOpen(false);
+      setProjectModalOpen(false);
 
       // Show success toast
       showSuccess(
@@ -198,6 +209,50 @@ export function ProjectsPage() {
     }
   };
 
+  const handleEditProject = (project: ProjectWithClientAndStats) => {
+    setEditDialog({
+      isOpen: true,
+      project: project,
+    });
+  };
+
+  const handleUpdateProject = async (projectId: number, projectData: any) => {
+    try {
+      // Handle file upload if needed
+      let invoiceUrl = editDialog.project?.invoice_url;
+      if (projectData.invoice) {
+        invoiceUrl = await fileService.uploadInvoice(
+          projectData.invoice,
+          projectId
+        );
+      }
+
+      // Update project
+      await projectService.updateProject(projectId, {
+        title: projectData.title,
+        description: projectData.description,
+        deadline: projectData.deadline,
+        budget: parseFloat(projectData.budget.replace(/[^0-9.-]+/g, "")),
+        status: projectData.status,
+        ...(invoiceUrl && { invoice_url: invoiceUrl }),
+      });
+
+      showSuccess("Project Updated", `${projectData.title} has been updated`);
+      await loadProjects(); // Refresh the list
+      setEditDialog({ isOpen: false, project: null });
+    } catch (err) {
+      showError(
+        "Failed to Update Project",
+        err instanceof Error ? err.message : "An unexpected error occurred"
+      );
+    }
+  };
+
+  // Helper function to close edit modal
+  const handleCloseEdit = () => {
+    setEditDialog({ isOpen: false, project: null });
+  };
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
@@ -219,6 +274,12 @@ export function ProjectsPage() {
       : "bg-green-500/10 text-green-400 border border-green-500/20";
   };
 
+  // Calculate payment progress for a project
+  const calculatePaymentProgress = (project: ProjectWithClientAndStats) => {
+    if (project.budget === 0) return 0;
+    return Math.min((project.total_paid / project.budget) * 100, 100);
+  };
+
   const filteredProjects = projects.filter(
     (project) =>
       project.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -230,8 +291,7 @@ export function ProjectsPage() {
         .includes(searchTerm.toLowerCase())
   );
 
-  // Calculate stats
-  const totalProjects = projects.length;
+  // Calculate stats - now using actual payment data
   const inProgressProjects = projects.filter(
     (p) => p.status === "Started"
   ).length;
@@ -257,12 +317,9 @@ export function ProjectsPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-white">Projects</h1>
-            <p className="text-gray-400 mt-2">
-              Track and manage all your active projects in one place.
-            </p>
           </div>
           <Button
-            onClick={() => setIsAddProjectModalOpen(true)}
+            onClick={() => setProjectModalOpen(true)}
             className="flex items-center space-x-2"
           >
             <Plus className="h-4 w-4" />
@@ -296,13 +353,9 @@ export function ProjectsPage() {
       >
         <div>
           <h1 className="text-3xl font-bold text-white">Projects</h1>
-          <p className="text-gray-400 mt-2">
-            Track and manage all your active projects in one place.
-            <span className="text-white"> ({totalProjects} total)</span>
-          </p>
         </div>
         <Button
-          onClick={() => setIsAddProjectModalOpen(true)}
+          onClick={() => setProjectModalOpen(true)}
           className="flex items-center space-x-2"
         >
           <Plus className="h-4 w-4" />
@@ -311,19 +364,14 @@ export function ProjectsPage() {
       </motion.div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {[
-          {
-            label: "Total Projects",
-            value: totalProjects.toString(),
-            icon: FolderOpen,
-            color: "blue",
-          },
+         
           {
             label: "In Progress",
             value: inProgressProjects.toString(),
             icon: FolderOpen,
-            color: "yellow",
+            color: "blue",
           },
           {
             label: "Completed",
@@ -335,7 +383,7 @@ export function ProjectsPage() {
             label: "Total Budget",
             value: formatCurrency(totalBudget),
             icon: DollarSign,
-            color: "purple",
+            color: "green",
           },
         ].map((stat, index) => {
           const Icon = stat.icon;
@@ -399,7 +447,7 @@ export function ProjectsPage() {
                 : "Get started by creating your first project"}
             </p>
             {!searchTerm && (
-              <Button onClick={() => setIsAddProjectModalOpen(true)}>
+              <Button onClick={() => setProjectModalOpen(true)}>
                 <Plus className="h-4 w-4 mr-2" />
                 Create Your First Project
               </Button>
@@ -408,121 +456,151 @@ export function ProjectsPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {filteredProjects.map((project, index) => (
-            <motion.div
-              key={project.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 * index }}
-            >
-              <Card className="p-6 hover:bg-gray-700/50 transition-colors">
-                <div className="flex items-start justify-between mb-4">
-                  <div>
-                    <h3 className="text-lg font-semibold text-white">
-                      {project.title}
-                    </h3>
-                    <p className="text-sm text-gray-400 mt-1">
-                      {project.client.full_name} • {project.client.company_name}
-                    </p>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <span
-                      className={`inline-flex px-2.5 py-0.5 text-xs font-medium rounded-full ${getStatusColor(
-                        project.status
-                      )}`}
-                    >
-                      {project.status}
-                    </span>
-                    <div className="flex space-x-1">
-                      <button className="p-1 text-gray-400 hover:text-blue-400 transition-colors">
-                        <Edit className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={(e) =>
-                          handleDeleteProject(project.id, project.title, e)
-                        }
-                        className="p-1 text-gray-400 hover:text-red-400 transition-colors"
+          {filteredProjects.map((project, index) => {
+            // Calculate actual payment progress
+            const paymentProgress = calculatePaymentProgress(project);
+         
+
+            return (
+              <motion.div
+                key={project.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 * index }}
+              >
+                <Card className="p-6 hover:bg-gray-700/50 transition-colors">
+                  <div className="flex items-start justify-between mb-4">
+                    <div>
+                      <h3 className="text-lg font-semibold text-white">
+                        {project.title}
+                      </h3>
+                      <p className="text-sm text-gray-400 mt-1">
+                        {project.client.full_name} •{" "}
+                        {project.client.company_name}
+                      </p>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <span
+                        className={`inline-flex px-2.5 py-0.5 text-xs font-medium rounded-full ${getStatusColor(
+                          project.status
+                        )}`}
                       >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                        {project.status}
+                      </span>
+                      <div className="flex space-x-1">
+                        <button
+                          onClick={() => handleEditProject(project)}
+                          className="p-1 text-gray-400 hover:text-blue-400 transition-colors"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={(e) =>
+                            handleDeleteProject(project.id, project.title, e)
+                          }
+                          className="p-1 text-gray-400 hover:text-red-400 transition-colors"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <p className="text-gray-300 text-sm mb-4 line-clamp-2">
-                  {project.description}
-                </p>
+                  <p className="text-gray-300 text-sm mb-4 line-clamp-2">
+                    {project.description}
+                  </p>
 
-                {/* Project Details */}
-
-                <div className="grid grid-cols-2 gap-4 text-sm mb-4">
-                  <div className="flex items-center space-x-2">
-                    <DollarSign className="h-4 w-4 text-gray-400" />
-                    <span className="text-gray-300">
-                      {formatCurrency(project.budget)}
-                    </span>
+                  {/* Functional Progress Bar */}
+                  <div className="mb-4">
+                    <div className="flex justify-between mb-1">
+                      <span className="text-xs text-gray-400">
+                        Payment Progress
+                      </span>
+                      <span className="text-xs text-gray-400">
+                        {paymentProgress >= 100
+                          ? "100%"
+                          : `${formatCurrency(
+                              project.total_paid
+                            )}/${formatCurrency(project.budget)}`}
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-700 rounded-full h-2 overflow-hidden">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{
+                          width: `${paymentProgress}%`,
+                        }}
+                        transition={{ duration: 0.8, ease: "easeOut" }}
+                        className={`h-2 rounded-full ${
+                          paymentProgress >= 100
+                            ? "bg-green-500"
+                            : paymentProgress > 0
+                            ? "bg-blue-500"
+                            : "bg-gray-600"
+                        }`}
+                      />
+                    </div>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <Calendar className="h-4 w-4 text-gray-400" />
-                    <span className="text-gray-300">
-                      {formatDate(project.deadline)}
-                    </span>
-                  </div>
-                </div>
 
-                {/* Progress Bar */}
-                <div className="mb-4">
-                  <div className="flex justify-between mb-1">
-                    <span className="text-xs text-gray-400">Progress</span>
-                    <span className="text-xs text-gray-400">
-                      {project.status === "Finished" ? "100%" : "40%"}
-                    </span>
+                  {/* Deadline */}
+                  <div className="flex items-center justify-between  mb-4">
+                    <div className="flex items-center space-x-1">
+                      <Clock className="h-4 w-4 text-gray-400" />
+                      <span className="text-gray-300 text-sm">
+                        Created: {formatDate(project.created_at)}
+                      </span>
+                    </div>
+                    <div className="flex items-center space-x-1">
+                      <Calendar className="h-4 w-4 text-gray-400" />
+                      <span className="text-gray-300 text-sm">
+                        Due: {formatDate(project.deadline)}
+                      </span>
+                    </div>
                   </div>
-                  <div className="w-full bg-gray-700 rounded-full h-2 overflow-hidden">
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{
-                        width: project.status === "Finished" ? "100%" : "40%",
-                      }}
-                      transition={{ duration: 0.8, ease: "easeOut" }}
-                      className={`h-2 rounded-full ${
-                        project.status === "Finished"
-                          ? "bg-green-500"
-                          : "bg-blue-500"
-                      }`}
-                    />
-                  </div>
-                </div>
 
-                {project.invoice_url && (
-                  <div className="pt-2 border-t border-gray-700 mb-4">
-                    <a
-                      href={project.invoice_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center text-sm text-blue-400 hover:text-blue-300 transition-colors"
+                  {project.invoice_url && (
+                    <div className="pt-2 border-t border-gray-700 mb-4">
+                      <a
+                        href={project.invoice_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center text-sm text-blue-400 hover:text-blue-300 transition-colors"
+                      >
+                        View Invoice →
+                      </a>
+                    </div>
+                  )}
+
+                  <div className="pt-4 border-t border-gray-700">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full"
+                      onClick={() => navigate(`/projects/${project.id}`)}
                     >
-                      View Invoice →
-                    </a>
+                      View Details
+                    </Button>
                   </div>
-                )}
-
-                <div className="pt-4 border-t border-gray-700">
-                  <Button variant="ghost" size="sm" className="w-full">
-                    View Details
-                  </Button>
-                </div>
-              </Card>
-            </motion.div>
-          ))}
+                </Card>
+              </motion.div>
+            );
+          })}
         </div>
       )}
 
-      {/* Add Project Modal */}
-      <AddProjectModal
-        isOpen={isAddProjectModalOpen}
-        onClose={() => setIsAddProjectModalOpen(false)}
+      {/* Add Project Modal for new projects */}
+      <ProjectModal
+        isOpen={ProjectModalOpen}
+        onClose={() => setProjectModalOpen(false)}
         onSubmit={handleAddProject}
+      />
+
+      {/* Edit Project Modal */}
+      <ProjectModal
+        isOpen={editDialog.isOpen}
+        onClose={handleCloseEdit}
+        onUpdate={handleUpdateProject}
+        editingProject={editDialog.project}
       />
 
       {/* Delete Confirmation Dialog */}

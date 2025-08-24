@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import {
   Plus,
   Search,
@@ -15,8 +15,7 @@ import {
 import { Card } from "../components/ui/Card";
 import { Button } from "../components/ui/Button";
 import { ConfirmDialog } from "../components/ui/Dialog";
-import { AddClientModal } from "../components/AddClientModal";
-import { EditClientModal } from "../components/EditClientModal";
+import { ClientModal } from "../components/ClientModal";
 import { useNavigate } from "react-router-dom";
 import { clientService } from "../services/database";
 import { useToaster } from "../context/ToasterContext";
@@ -36,7 +35,7 @@ type ClientWithStats = {
 };
 
 export function ClientsPage() {
-  const [isAddClientModalOpen, setIsAddClientModalOpen] = useState(false);
+  const [ClientModalOpen, setClientModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [clients, setClients] = useState<ClientWithStats[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,7 +44,7 @@ export function ClientsPage() {
   // Use global toaster
   const { showSuccess, showError } = useToaster();
   
-  // Edit client modal state
+  // Edit client modal state - Updated to use unified modal
   const [editClientModal, setEditClientModal] = useState<{
     isOpen: boolean;
     client: ClientWithStats | null;
@@ -104,7 +103,7 @@ export function ClientsPage() {
         company_name: clientData.companyName,
       });
       
-      setIsAddClientModalOpen(false);
+      setClientModalOpen(false);
       
       // Show success toast
       showSuccess(
@@ -131,17 +130,15 @@ export function ClientsPage() {
     });
   };
 
-  const handleUpdateClient = async (clientData: {
+  const handleUpdateClient = async (clientId: number, clientData: {
     fullName: string;
     email: string;
     phoneNumber: string;
     address: string;
     companyName: string;
   }) => {
-    if (!editClientModal.client) return;
-
     try {
-      await clientService.updateClient(editClientModal.client.id, {
+      await clientService.updateClient(clientId, {
         full_name: clientData.fullName,
         email: clientData.email,
         phone_number: clientData.phoneNumber,
@@ -261,7 +258,7 @@ export function ClientsPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-white">Clients</h1>
-            <p className="text-gray-400 mt-2">Manage your client relationships</p>
+         
           </div>
           <Button
             onClick={() => setIsAddClientModalOpen(true)}
@@ -283,9 +280,9 @@ export function ClientsPage() {
           </Card>
         </div>
 
-        <AddClientModal
-          isOpen={isAddClientModalOpen}
-          onClose={() => setIsAddClientModalOpen(false)}
+        <ClientModal
+          isOpen={isClientModalOpen}
+          onClose={() => setClientModalOpen(false)}
           onSubmit={handleAddClient}
         />
       </div>
@@ -298,12 +295,10 @@ export function ClientsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-white">Clients</h1>
-          <p className="text-gray-400 mt-2">
-            Manage your client relationships <span className="text-white"> ({clients.length} total) </span>
-          </p>
+         
         </div>
         <Button
-          onClick={() => setIsAddClientModalOpen(true)}
+          onClick={() => setClientModalOpen(true)}
           className="flex items-center space-x-2"
         >
           <Plus className="h-4 w-4" />
@@ -343,7 +338,7 @@ export function ClientsPage() {
               }
             </p>
             {!searchTerm && (
-              <Button onClick={() => setIsAddClientModalOpen(true)}>
+              <Button onClick={() => setClientModalOpen(true)}>
                 <Plus className="h-4 w-4 mr-2" />
                 Add Your First Client
               </Button>
@@ -352,12 +347,12 @@ export function ClientsPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredClients.map((client) => (
+          {filteredClients.map((client, index) => (
             <motion.div
               key={client.id}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3 }}
+              transition={{ delay: 0.1 * index }}
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               onClick={() => handleClientClick(client)}
@@ -458,19 +453,20 @@ export function ClientsPage() {
         </div>
       )}
 
-      {/* Add Client Modal */}
-      <AddClientModal
-        isOpen={isAddClientModalOpen}
-        onClose={() => setIsAddClientModalOpen(false)}
+      {/* Add Client Modal - For new clients */}
+      <ClientModal
+        isOpen={ClientModalOpen}
+        onClose={() => setClientModalOpen(false)}
         onSubmit={handleAddClient}
       />
 
-      {/* Edit Client Modal */}
-      <EditClientModal
+      {/* Edit Client Modal - Using unified component */}
+      <ClientModal
         isOpen={editClientModal.isOpen}
         onClose={closeEditModal}
-        onSubmit={handleUpdateClient}
-        client={editClientModal.client}
+        onSubmit={handleAddClient} // Still needed for type compatibility
+        onUpdate={handleUpdateClient} // Handler for updates
+        editingClient={editClientModal.client}
       />
 
       {/* Delete Confirmation Dialog */}

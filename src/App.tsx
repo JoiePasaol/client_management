@@ -9,6 +9,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { ClientsPage } from './pages/ClientsPage';
 import { ClientInformation } from './sections/ClientInformation';
 import { ProjectsPage } from './pages/ProjectsPage';
+import { ProjectInformation } from './sections/ProjectInformation';
 import { PortalPage } from './pages/PortalPage';
 
 function App() {
@@ -31,6 +32,7 @@ function App() {
               <Route path="projects" element={<ProjectsPage />} />
               <Route path="portal" element={<PortalPage />} />
               <Route path="clients/:id" element={<ClientInformation />} />
+              <Route path="projects/:id" element={<ProjectInformation />} />
               <Route index element={<Navigate to="/dashboard" replace />} />
             </Route>
           </Routes>
