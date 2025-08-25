@@ -33,7 +33,6 @@ import {
 // Component imports
 import { ActionButtons } from "../components/common/ActionButtons";
 import { DeadlineInfo } from "../components/common/DeadlineInfo";
-import { EmptyState } from "../components/common/EmptyState";
 import { ErrorState } from "../components/common/ErrorState";
 import { LoadingState } from "../components/common/LoadingState";
 import { PaginationControls } from "../components/common/PaginationControls";
@@ -102,7 +101,7 @@ export function ProjectInformation() {
   const editProjectModal = useModal();
   const recordPaymentModal = useModal();
   const addUpdateModal = useModal();
-  const markAsDoneDialog = useConfirmDialog();
+
 
   // Pagination hooks
   const paymentPagination = usePagination(payments);
@@ -173,8 +172,6 @@ export function ProjectInformation() {
     if (!project) return;
 
     try {
-      markAsDoneDialog.setLoading(true);
-
       // Update project status to finished
       await projectService.updateProject(project.id, { status: "Finished" });
 
@@ -183,11 +180,9 @@ export function ProjectInformation() {
         "Project has been marked as finished successfully."
       );
 
-      markAsDoneDialog.closeDialog();
       await loadProjectData(project.id);
     } catch (error) {
       console.error("Error marking project as done:", error);
-      markAsDoneDialog.setLoading(false);
       showError(
         "Failed to Mark as Done",
         error instanceof Error ? error.message : "An unexpected error occurred"
@@ -235,8 +230,8 @@ export function ProjectInformation() {
       ) {
         try {
           await projectService.updateProject(project.id, { status: "Started" });
-
-          showSuccess(
+          //Successully reverted project status
+          showError(
             "Payment Deleted & Status Updated",
             `Payment of ${formatCurrency(
               deleteDialog.data.amount!
@@ -244,7 +239,8 @@ export function ProjectInformation() {
           );
         } catch (error) {
           console.error("Error reverting project status:", error);
-          showSuccess(
+        
+          showError(
             "Payment Deleted",
             `Payment of ${formatCurrency(
               deleteDialog.data.amount!
@@ -252,7 +248,8 @@ export function ProjectInformation() {
           );
         }
       } else {
-        showSuccess(
+        showError(
+          //Succesfully removed payment
           "Payment Deleted",
           `Payment of ${formatCurrency(
             deleteDialog.data.amount!
@@ -285,7 +282,8 @@ export function ProjectInformation() {
       setProjectUpdates((prev) =>
         prev.filter((update) => update.id !== deleteDialog.data!.id)
       );
-      showSuccess(
+      //successfully removed update
+      showError(
         "Update Deleted",
         "Project update has been removed successfully"
       );
@@ -671,8 +669,8 @@ export function ProjectInformation() {
                       {/* Mark as Done button - only show when payment is completed and status is not finished */}
                       {paymentCompleted && project.status !== "Finished" && (
                         <Button
+                          onClick={handleMarkAsDone}
                           size="sm"
-                          onClick={() => markAsDoneDialog.openDialog()}
                           className="bg-green-600 hover:bg-green-700 text-white flex items-center space-x-2"
                         >
                           <Check className="h-4 w-4" />
@@ -702,7 +700,7 @@ export function ProjectInformation() {
         </Card>
       </motion.div>
 
-      {/* Payment History - Always render */}
+      {/* Payment History  */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -800,7 +798,7 @@ export function ProjectInformation() {
         )}
       </motion.div>
 
-      {/* Project Updates - Always render */}
+      {/* Project Updates */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -923,18 +921,7 @@ export function ProjectInformation() {
         projectTitle={project?.title}
       />
 
-      {/* Mark as Done Confirmation Dialog */}
-      <ConfirmDialog
-        isOpen={markAsDoneDialog.isOpen}
-        onClose={markAsDoneDialog.closeDialog}
-        onConfirm={handleMarkAsDone}
-        title="Mark Project as Done"
-        message={`Are you sure you want to mark "${project?.title}" as completed? This will change the project status to 'Finished'.`}
-        confirmText="Yes, Mark as Done"
-        cancelText="Cancel"
-        isLoading={markAsDoneDialog.isLoading}
-        variant="success"
-      />
+     
 
       {/* Unified Delete Confirmation Dialog */}
       <ConfirmDialog

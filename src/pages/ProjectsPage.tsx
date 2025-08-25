@@ -17,7 +17,7 @@ import { useNavigate } from "react-router-dom";
 import { useToaster } from "../context/ToasterContext";
 import { useConfirmDialog } from "../hooks/useConfirmDialog";
 import { useModal } from "../hooks/useModal";
-import { formatCurrency, formatDate } from "../utils/formatters";
+import { formatDate } from "../utils/formatters";
 import { calculatePaymentProgress } from "../utils/calculations";
 
 // Project with client info and payment stats type
@@ -224,7 +224,9 @@ export function ProjectsPage() {
   const completedProjects = projects.filter(
     (p) => p.status === "Finished"
   ).length;
-  const totalBudget = projects.reduce((sum, p) => sum + p.budget, 0);
+
+  const totalProjects = projects.length;
+
 
   if (loading) {
     return <LoadingState message="Loading projects..." />;
@@ -291,10 +293,10 @@ export function ProjectsPage() {
             color: "green",
           },
           {
-            label: "Total Budget",
-            value: formatCurrency(totalBudget),
-            icon: DollarSign,
-            color: "green",
+            label: "Total",
+            value: totalProjects.toString(),
+            icon: FolderOpen,
+            color: "yellow",
           },
         ].map((stat, index) => {
           const Icon = stat.icon;
