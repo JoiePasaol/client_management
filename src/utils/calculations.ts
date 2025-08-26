@@ -26,8 +26,6 @@ export const calculatePaymentProgress = (totalPaid: number, budget: number): num
         : `${days} days remaining`
     };
   };
-  
-
 
   
   export const shouldRevertProjectStatus = (

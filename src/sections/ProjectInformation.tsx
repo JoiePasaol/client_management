@@ -5,7 +5,7 @@ import {
   ArrowLeft,
   Plus,
   Calendar,
-  DollarSign,
+  PhilippinePeso,
   FileText,
   CreditCard,
   User,
@@ -17,9 +17,14 @@ import {
   projectService,
   paymentService,
   projectUpdateService,
+  type Payment,
+  type ProjectUpdate,
+  type ProjectWithClient,
+  type PaymentForm,
+  type ProjectUpdateForm,
+  type DeleteData,
 } from "../services/database";
 import { useToaster } from "../context/ToasterContext";
-import type { Payment, ProjectUpdate } from "../lib/supabase";
 
 // Utility imports
 import { formatCurrency, formatDate, parseBudget } from "../utils/formatters";
@@ -47,42 +52,6 @@ import { ProjectModal } from "../components/ProjectModal";
 import { useConfirmDialog } from "../hooks/useConfirmDialog";
 import { useModal } from "../hooks/useModal";
 import { usePagination } from "../hooks/usePagination";
-
-type ProjectWithClient = {
-  id: number;
-  title: string;
-  description: string;
-  deadline: string;
-  budget: number;
-  status: "Started" | "Finished";
-  invoice_url?: string;
-  created_at: string;
-  client: {
-    id: number;
-    full_name: string;
-    company_name: string;
-    email: string;
-    phone_number: string;
-    address: string;
-  };
-};
-
-type PaymentForm = {
-  amount: number;
-  paymentDate: string;
-  paymentMethod: "Bank Transfer" | "Cash" | "Check";
-};
-
-type ProjectUpdateForm = {
-  description: string;
-};
-
-type DeleteData = {
-  type: "project" | "payment" | "update";
-  id: number;
-  name: string;
-  amount?: number;
-};
 
 export function ProjectInformation() {
   const { id } = useParams();
@@ -564,7 +533,7 @@ export function ProjectInformation() {
                     </p>
                   </div>
                   <div className="h-12 w-12 bg-green-500/10 rounded-lg flex items-center justify-center">
-                    <DollarSign className="h-6 w-6 text-green-400" />
+                    <PhilippinePeso className="h-6 w-6 text-green-400" />
                   </div>
                 </div>
               </div>
@@ -620,7 +589,7 @@ export function ProjectInformation() {
                     </p>
                   </div>
                   <div className="h-12 w-12 bg-green-500/10 rounded-lg flex items-center justify-center">
-                    <DollarSign className="h-6 w-6 text-green-400" />
+                    <PhilippinePeso className="h-6 w-6 text-green-400" />
                   </div>
                 </div>
               </div>
@@ -747,7 +716,7 @@ export function ProjectInformation() {
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-4">
                           <div className="relative h-12 w-12 bg-gradient-to-br from-green-500/20 to-green-600/20 rounded-xl flex items-center justify-center ring-1 ring-green-500/20">
-                            <DollarSign className="h-6 w-6 text-green-400" />
+                            <PhilippinePeso className="h-6 w-6 text-green-400" />
                             <div className="absolute inset-0 bg-green-500/10 rounded-xl blur-sm" />
                           </div>
                           <div>
@@ -850,7 +819,7 @@ export function ProjectInformation() {
                         <div className="flex-1 min-w-0">
                           <div className="flex justify-between">
                             <div className="max-w-xl">
-                              <p className="text-white leading-relaxed text-sm break-words">
+                              <p className="text-sm font-medium text-white mb-1 break-words">
                                 {update.description}
                               </p>
                               <p className="text-xs text-gray-400 mt-1">
@@ -859,7 +828,7 @@ export function ProjectInformation() {
                             </div>
 
                             <ActionButtons
-                              onEdit={() => {}} // No edit for updates in current design
+                             showEdit={false}
                               onDelete={() => {
                                 const truncatedDescription =
                                   update.description.length > 50

@@ -36,7 +36,6 @@ export function RecordPaymentModal({
   isOpen,
   onClose,
   onSubmit,
-  projectTitle,
 }: RecordPaymentModalProps) {
   const [paymentMethodDropdownOpen, setPaymentMethodDropdownOpen] = useState(false);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string | null>(null);
@@ -101,14 +100,14 @@ export function RecordPaymentModal({
             </label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
-                $
+              ₱
               </span>
               <input
                 {...register("amount")}
                 type="number"
                 step="0.01"
                 min="0"
-                className="w-full pl-8 pr-3 py-2 bg-gray-700 focus:outline-none border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full pl-6 py-2 bg-gray-700 focus:outline-none border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="0.00"
               />
             </div>

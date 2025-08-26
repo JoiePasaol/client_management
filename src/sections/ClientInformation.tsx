@@ -23,10 +23,9 @@ import { LoadingState } from "../components/common/LoadingState";
 import { StatusBadge } from "../components/common/StatusBadge";
 import { useConfirmDialog } from "../hooks/useConfirmDialog";
 import { useModal } from "../hooks/useModal";
-import { clientService, projectService, fileService } from "../services/database";
+import { clientService, projectService, fileService, type ClientWithProjects } from "../services/database";
 import { useToaster } from "../context/ToasterContext";
 import { formatCurrency, formatDate, parseBudget } from "../utils/formatters";
-import type { ClientWithProjects } from "../lib/supabase";
 
 interface DeleteClientData {
   clientId: number;

@@ -69,7 +69,6 @@ export function LoginPage() {
               <Lock className="h-6 w-6 text-white" />
             </motion.div>
             <h1 className="text-2xl font-bold text-white">Welcome Back</h1>
-            <p className="text-gray-400 mt-2">Sign in to your admin portal</p>
           </div>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">

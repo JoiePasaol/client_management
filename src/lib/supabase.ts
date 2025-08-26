@@ -49,7 +49,7 @@ export interface ClientWithProjects extends Client {
   projects: Project[]
 }
 
-// Enhanced types with statistics
+
 export interface ProjectWithStats extends Project {
   client: {
     id: number
@@ -92,3 +92,78 @@ export interface ProjectUpdateWithDetails extends ProjectUpdate {
     }
   }
 }
+
+
+export interface ProjectWithClient {
+  id: number
+  title: string
+  description: string
+  deadline: string
+  budget: number
+  status: "Started" | "Finished"
+  invoice_url?: string
+  created_at: string
+  client: {
+    id: number
+    full_name: string
+    company_name: string
+    email: string
+    phone_number: string
+    address: string
+  }
+}
+
+export interface PaymentForm {
+  amount: number
+  paymentDate: string
+  paymentMethod: "Bank Transfer" | "Cash" | "Check"
+}
+
+export interface ProjectUpdateForm {
+  description: string
+}
+
+export interface DeleteData {
+  type: "project" | "payment" | "update"
+  id: number
+  name: string
+  amount?: number
+}
+
+export interface DashboardStats {
+  totalClients: number;
+  totalProjects: number;
+  monthlyRevenue: number;
+  totalRevenue: number;
+}
+
+export interface ProjectStatusStats {
+  started: number;
+  finished: number;
+  total: number;
+}
+
+export interface FinancialStats {
+  totalBudget: number;
+  totalPaid: number;
+  outstanding: number;
+}
+
+type ProjectWithClientAndStats = {
+  id: number;
+  title: string;
+  description: string;
+  deadline: string;
+  budget: number;
+  status: "Started" | "Finished";
+  invoice_url?: string;
+  created_at: string;
+  client: {
+    id: number;
+    full_name: string;
+    company_name: string;
+  };
+  payment_count: number;
+  total_paid: number;
+  update_count: number;
+};

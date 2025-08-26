@@ -1,5 +1,23 @@
 // src/services/database.ts
-import { supabase, type Client, type Project, type ClientWithProjects, type Payment, type ProjectUpdate } from '../lib/supabase'
+import { 
+  supabase, 
+  type Client, 
+  type Project, 
+  type ClientWithProjects, 
+  type Payment, 
+  type ProjectUpdate,
+  type ClientWithStats,
+  type ProjectWithStats,
+  type PaymentWithDetails,
+  type ProjectUpdateWithDetails,
+  type ProjectWithClient,
+  type PaymentForm,
+  type ProjectUpdateForm,
+  type DeleteData,
+  type DashboardStats,
+  type ProjectStatusStats,
+  type FinancialStats
+} from '../lib/supabase'
 
 // Client Services
 export const clientService = {
@@ -26,11 +44,7 @@ export const clientService = {
   },
 
   // Get all clients with project counts
-  async getAllClientsWithStats(): Promise<Array<Client & { 
-    project_count: number
-    active_project_count: number
-    total_revenue: number
-  }>> {
+  async getAllClientsWithStats(): Promise<ClientWithStats[]> {
     const { data, error } = await supabase
       .from('clients')
       .select(`
@@ -44,7 +58,7 @@ export const clientService = {
       throw new Error(`Failed to fetch clients: ${error.message}`)
     }
 
-    // Transform the data to match your existing client interface
+    // Transform the data to match the ClientWithStats interface
     return data.map(client => {
       const projects = client.projects || []
       const projectCount = projects.length
@@ -83,9 +97,7 @@ export const clientService = {
   },
 
   // Get client with enhanced statistics including payments and updates
-  async getClientWithEnhancedStats(clientId: number): Promise<Client & {
-    project_count: number
-    active_project_count: number
+  async getClientWithEnhancedStats(clientId: number): Promise<(ClientWithStats & {
     total_budget: number
     total_paid: number
     total_updates: number
@@ -94,7 +106,7 @@ export const clientService = {
       total_paid: number
       update_count: number
     }>
-  } | null> {
+  }) | null> {
     const { data: client, error } = await supabase
       .from('clients')
       .select(`
@@ -147,6 +159,7 @@ export const clientService = {
       ...client,
       project_count: projectCount,
       active_project_count: activeProjectCount,
+      total_revenue: totalBudget, // Maintaining backward compatibility
       total_budget: totalBudget,
       total_paid: totalPaid,
       total_updates: totalUpdates,
@@ -252,16 +265,7 @@ export const projectService = {
   },
 
   // Get all projects with enhanced statistics
-  async getAllProjectsWithStats(): Promise<Array<Project & {
-    client: {
-      id: number;
-      full_name: string;
-      company_name: string;
-    }
-    payment_count: number
-    total_paid: number
-    update_count: number
-  }>> {
+  async getAllProjectsWithStats(): Promise<ProjectWithStats[]> {
     const { data, error } = await supabase
       .from('projects')
       .select(`
@@ -291,18 +295,10 @@ export const projectService = {
   },
 
   // Get single project with enhanced statistics
-  async getProjectWithStats(projectId: number): Promise<Project & {
-    client: {
-      id: number;
-      full_name: string;
-      company_name: string;
-    }
-    payment_count: number
-    total_paid: number
-    update_count: number
+  async getProjectWithStats(projectId: number): Promise<(ProjectWithStats & {
     payments: Payment[]
     project_updates: ProjectUpdate[]
-  } | null> {
+  }) | null> {
     const { data, error } = await supabase
       .from('projects')
       .select(`
@@ -438,17 +434,7 @@ export const paymentService = {
   },
 
   // Get all payments with project and client information
-  async getAllPaymentsWithDetails(): Promise<Array<Payment & {
-    project: {
-      id: number
-      title: string
-      client: {
-        id: number
-        full_name: string
-        company_name: string
-      }
-    }
-  }>> {
+  async getAllPaymentsWithDetails(): Promise<PaymentWithDetails[]> {
     const { data, error } = await supabase
       .from('payments')
       .select(`
@@ -524,17 +510,7 @@ export const projectUpdateService = {
   },
 
   // Get all updates with project and client information
-  async getAllUpdatesWithDetails(): Promise<Array<ProjectUpdate & {
-    project: {
-      id: number
-      title: string
-      client: {
-        id: number
-        full_name: string
-        company_name: string
-      }
-    }
-  }>> {
+  async getAllUpdatesWithDetails(): Promise<ProjectUpdateWithDetails[]> {
     const { data, error } = await supabase
       .from('project_updates')
       .select(`
@@ -589,4 +565,24 @@ export const fileService = {
 
     return data.publicUrl
   }
+}
+
+// Re-export types for convenience
+export type { 
+  Client, 
+  Project, 
+  ClientWithProjects, 
+  Payment, 
+  ProjectUpdate,
+  ClientWithStats,
+  ProjectWithStats,
+  PaymentWithDetails,
+  ProjectUpdateWithDetails,
+  ProjectWithClient,
+  PaymentForm,
+  ProjectUpdateForm,
+  DeleteData,
+  DashboardStats,
+  ProjectStatusStats,
+  FinancialStats
 }

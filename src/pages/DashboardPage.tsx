@@ -1,94 +1,198 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
   Users,
   FolderOpen,
-  Globe,
   TrendingUp,
-  Activity,
   Clock,
   CheckCircle,
   PlayCircle,
-  CircleDollarSign,
+  PhilippinePeso
 } from "lucide-react";
 import { Card } from "../components/ui/Card";
+import { LoadingState } from "../components/common/LoadingState";
+import { ErrorState } from "../components/common/ErrorState";
+import { 
+  clientService, 
+  projectService,
+  paymentService,
+  type DashboardStats,
+  type ProjectStatusStats,
+  type FinancialStats
+} from "../services/database";
+import { formatCurrency } from "../utils/formatters";
 
-const stats = [
-  {
-    name: "Total Clients",
-    value: "24",
-    change: "+12%",
-    changeType: "positive",
-    icon: Users,
-  },
-  {
-    name: "Active Projects",
-    value: "18",
-    change: "+8%",
-    changeType: "positive",
-    icon: FolderOpen,
-  },
-  {
-    name: "Portal Views",
-    value: "2.4k",
-    change: "+24%",
-    changeType: "positive",
-    icon: Globe,
-  },
-  {
-    name: "Revenue",
-    value: "$84.2k",
-    change: "+15%",
-    changeType: "positive",
-    icon: TrendingUp,
-  },
-];
-
-const recentActivities = [
-  {
-    id: 1,
-    type: "client",
-    message: 'New client "Acme Corp" added to the system',
-    date: "08/12/2025",
-    icon: Users,
-  },
-  {
-    id: 2,
-    type: "project",
-    message: 'Project "E-commerce Platform" marked as completed',
-    date: "08/13/2025",
-    icon: FolderOpen,
-  },
-  {
-    id: 3,
-    type: "portal",
-    message: "Portal accessed by 5 new users today",
-    date: "08/14/2025",
-    icon: Globe,
-  },
-  {
-    id: 4,
-    type: "system",
-    message: "System maintenance completed successfully",
-    date: "08/15/2025",
-    icon: Activity,
-  },
-];
-
-// Quick Insight Data
-const projectStatus = [
-  { id: 1, label: "Started", value: 12, icon: PlayCircle },
-  { id: 2, label: "Finished", value: 6, icon: CheckCircle },
-  { id: 3, label: "Total", value: 18, icon: FolderOpen },
-];
-
-const financialOverview = [
-  { id: 1, label: "Total Budget", value: "$120k", icon: CircleDollarSign },
-  { id: 2, label: "Paid", value: "$84k", icon: CircleDollarSign },
-  { id: 3, label: "Outstanding", value: "$36k", icon: CircleDollarSign },
-];
 
 export function DashboardPage() {
+  const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null);
+  const [projectStatusStats, setProjectStatusStats] = useState<ProjectStatusStats | null>(null);
+  const [financialStats, setFinancialStats] = useState<FinancialStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        // Fetch clients, projects, and payments data
+        const [clients, projects, allPayments] = await Promise.all([
+          clientService.getAllClientsWithStats(),
+          projectService.getAllProjectsWithStats(),
+          paymentService.getAllPaymentsWithDetails()
+        ]);
+
+        // Calculate dashboard statistics
+        const totalClients = clients.length;
+        const totalProjects = projects.length;
+        const totalBudget = projects.reduce((sum, project) => sum + (project.budget || 0), 0);
+        const totalPaid = projects.reduce((sum, project) => sum + (project.total_paid || 0), 0);
+        
+        // Calculate monthly revenue (last 30 days of payments)
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        
+        const monthlyRevenue = allPayments
+          .filter(payment => new Date(payment.payment_date) >= thirtyDaysAgo)
+          .reduce((sum, payment) => sum + (payment.amount || 0), 0);
+        
+        // Calculate total revenue (all payments)
+        const totalRevenue = allPayments.reduce((sum, payment) => sum + (payment.amount || 0), 0);
+        
+        setDashboardStats({
+          totalClients,
+          totalProjects,
+          monthlyRevenue,
+          totalRevenue
+        });
+
+        // Calculate project status statistics
+        const startedProjects = projects.filter(p => p.status === 'Started').length;
+        const finishedProjects = projects.filter(p => p.status === 'Finished').length;
+        
+        setProjectStatusStats({
+          started: startedProjects,
+          finished: finishedProjects,
+          total: totalProjects
+        });
+
+        // Calculate financial statistics
+        const outstanding = totalBudget - totalPaid;
+        
+        setFinancialStats({
+          totalBudget,
+          totalPaid,
+          outstanding
+        });
+
+      } catch (err) {
+        console.error('Error fetching dashboard data:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load dashboard data');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDashboardData();
+  }, []);
+
+  if (loading) {
+    return <LoadingState message="Loading dashboard..." />;
+  }
+
+  if (error || !dashboardStats || !projectStatusStats || !financialStats) {
+    return (
+      <ErrorState 
+        message={error || "Failed to load dashboard data"} 
+        onRetry={() => window.location.reload()} 
+      />
+    );
+  }
+
+  const stats = [
+    {
+      name: "Total Clients",
+      value: dashboardStats.totalClients.toString(),
+      icon: Users,
+    },
+    {
+      name: "Total Projects",
+      value: dashboardStats.totalProjects.toString(),
+      icon: FolderOpen,
+    },
+    {
+      name: "Monthly Revenue",
+      value: formatCurrency(dashboardStats.monthlyRevenue),
+      icon: TrendingUp,
+    },
+    {
+      name: "Total Revenue",
+      value: formatCurrency(dashboardStats.totalRevenue),
+      icon: TrendingUp,
+    },
+  ];
+
+  const recentActivities = [
+    {
+      id: 1,
+      type: "payment",
+      message: 'Lorem Ipsum is simply dummy text of the printing.',
+      date: "4 hours ago",
+      icon:   PhilippinePeso
+    },
+    {
+      id: 2,
+      type: "update",
+      message: 'Lorem Ipsum is simply dummy text of the printing.',
+      date: "7 hours ago",
+      icon: FolderOpen 
+    },
+    {
+      id: 3,
+      type: "payment",
+      message: "Lorem Ipsum is simply dummy text of the printing.",
+      date: "1 day ago",
+      icon:   PhilippinePeso
+    },
+    {
+      id: 4,
+      type: "update",
+      message: "Lorem Ipsum is simply dummy text of the printing.",
+      date: "2 day ago",
+      icon: FolderOpen  
+    },
+  ];
+
+  // Project Status Data 
+  const projectStatus = [
+    { id: 1, label: "Started", value: projectStatusStats.started, icon: PlayCircle },
+    { id: 2, label: "Finished", value: projectStatusStats.finished, icon: CheckCircle },
+    { id: 3, label: "Total", value: projectStatusStats.total, icon: FolderOpen },
+  ];
+
+  // Financial Overview Data 
+  const financialOverview = [
+    { 
+      id: 1, 
+      label: "Total Budget", 
+      value: formatCurrency(financialStats.totalBudget), 
+      icon:   PhilippinePeso
+    },
+    { 
+      id: 2, 
+      label: "Paid", 
+      value: formatCurrency(financialStats.totalPaid), 
+      icon:   PhilippinePeso
+    },
+    { 
+      id: 3, 
+      label: "Outstanding", 
+      value: formatCurrency(financialStats.outstanding), 
+      icon:  PhilippinePeso
+    },
+  ];
+
   return (
     <div className="space-y-8">
       {/* Welcome Section */}
@@ -101,12 +205,6 @@ export function DashboardPage() {
           <h1 className="text-3xl font-bold text-white">Dashboard</h1>
           <p className="text-gray-400 mt-2">
             Welcome back! Here's what's happening with your business today.
-          </p>
-        </div>
-        <div className="text-right">
-          <p className="text-sm text-gray-400">Last updated</p>
-          <p className="text-sm font-medium text-white">
-            {new Date().toLocaleString()}
           </p>
         </div>
       </motion.div>
@@ -125,7 +223,7 @@ export function DashboardPage() {
               <Card className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-gray-400">
+                    <p className="text-xs font-medium text-gray-400">
                       {stat.name}
                     </p>
                     <p className="text-2xl font-bold text-white mt-2">
@@ -140,9 +238,6 @@ export function DashboardPage() {
                   <span className="text-green-600 text-sm font-medium">
                     {stat.change}
                   </span>
-                  <span className="text-gray-400 text-sm ml-2">
-                    from last month
-                  </span>
                 </div>
               </Card>
             </motion.div>
@@ -152,7 +247,7 @@ export function DashboardPage() {
 
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Recent Activity */}
+        {/* Recent Activity (UI only, static data) */}
         <motion.div
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
@@ -194,7 +289,7 @@ export function DashboardPage() {
           </Card>
         </motion.div>
 
-        {/* Quick Insight */}
+        {/* Quick Insight (functional) */}
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}

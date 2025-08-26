@@ -414,7 +414,7 @@ export function ProjectModal({
                 {...register("budget")}
                 type="text"
                 className="w-full px-3 py-2 bg-gray-700 focus:outline-none border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="e.g., $10,000"
+                placeholder="₱ 0.00"
               />
               {errors.budget && (
                 <p className="mt-2 text-sm text-red-400">

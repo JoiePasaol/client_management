@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { FolderOpen, Plus, DollarSign, Clock, Calendar } from "lucide-react";
+import { FolderOpen, Plus, Clock, Calendar } from "lucide-react";
 import { Card } from "../components/ui/Card";
 import { Button } from "../components/ui/Button";
 import { ConfirmDialog } from "../components/ui/Dialog";
@@ -12,7 +12,7 @@ import { SearchAndFilter } from "../components/common/SearchAndFilter";
 import { StatusBadge } from "../components/common/StatusBadge";
 import { ProgressBar } from "../components/common/ProgressBar";
 import { ActionButtons } from "../components/common/ActionButtons";
-import { projectService, fileService } from "../services/database";
+import { projectService, fileService, type ProjectWithStats } from "../services/database";
 import { useNavigate } from "react-router-dom";
 import { useToaster } from "../context/ToasterContext";
 import { useConfirmDialog } from "../hooks/useConfirmDialog";
@@ -20,28 +20,8 @@ import { useModal } from "../hooks/useModal";
 import { formatDate } from "../utils/formatters";
 import { calculatePaymentProgress } from "../utils/calculations";
 
-// Project with client info and payment stats type
-type ProjectWithClientAndStats = {
-  id: number;
-  title: string;
-  description: string;
-  deadline: string;
-  budget: number;
-  status: "Started" | "Finished";
-  invoice_url?: string;
-  created_at: string;
-  client: {
-    id: number;
-    full_name: string;
-    company_name: string;
-  };
-  payment_count: number;
-  total_paid: number;
-  update_count: number;
-};
-
 export function ProjectsPage() {
-  const [projects, setProjects] = useState<ProjectWithClientAndStats[]>([]);
+  const [projects, setProjects] = useState<ProjectWithStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
@@ -51,7 +31,7 @@ export function ProjectsPage() {
 
   // Custom hooks for modals and dialogs
   const addProjectModal = useModal();
-  const editProjectModal = useModal<ProjectWithClientAndStats>();
+  const editProjectModal = useModal<ProjectWithStats>();
   const deleteDialog = useConfirmDialog<{ id: number; name: string }>();
 
   useEffect(() => {
@@ -170,7 +150,7 @@ export function ProjectsPage() {
     }
   };
 
-  const handleEditProject = (project: ProjectWithClientAndStats) => {
+  const handleEditProject = (project: ProjectWithStats) => {
     editProjectModal.openModal(project);
   };
 
@@ -226,7 +206,6 @@ export function ProjectsPage() {
   ).length;
 
   const totalProjects = projects.length;
-
 
   if (loading) {
     return <LoadingState message="Loading projects..." />;

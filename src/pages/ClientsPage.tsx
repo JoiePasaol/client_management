@@ -14,25 +14,14 @@ import { SearchAndFilter } from "../components/common/SearchAndFilter";
 import { ContactInfo } from "../components/common/ContactInfo";
 import { ActionButtons } from "../components/common/ActionButtons";
 import { useNavigate } from "react-router-dom";
-import { clientService } from "../services/database";
+import { clientService, type ClientWithStats } from "../services/database";
 import { useToaster } from "../context/ToasterContext";
 import { useConfirmDialog } from "../hooks/useConfirmDialog";
 import { useModal } from "../hooks/useModal";
 import { formatCurrency } from "../utils/formatters";
 
-// Client types
-type ClientWithStats = {
-  id: number;
-  full_name: string;
-  email: string;
-  phone_number: string;
-  address: string;
-  company_name: string;
-  created_at: string;
-  project_count: number;
-  active_project_count: number;
-  total_revenue: number;
-};
+
+
 
 export function ClientsPage() {
   const [searchTerm, setSearchTerm] = useState("");
