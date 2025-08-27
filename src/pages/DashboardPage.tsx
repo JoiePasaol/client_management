@@ -7,7 +7,9 @@ import {
   Clock,
   CheckCircle,
   PlayCircle,
-  PhilippinePeso
+  PhilippinePeso,
+  Edit,
+  Trash2
 } from "lucide-react";
 import { Card } from "../components/ui/Card";
 import { LoadingState } from "../components/common/LoadingState";
@@ -16,19 +18,168 @@ import {
   clientService, 
   projectService,
   paymentService,
+  projectUpdateService,
   type DashboardStats,
   type ProjectStatusStats,
-  type FinancialStats
+  type FinancialStats,
+  type PaymentWithDetails,
+  type ProjectUpdateWithDetails,
+  type ProjectWithStats
 } from "../services/database";
 import { formatCurrency } from "../utils/formatters";
 
+interface RecentActivity {
+  id: string;
+  type: 'payment' | 'update' | 'project_finished' | 'project_started' | 'payment_deleted' | 'update_deleted';
+  clientName: string;
+  projectTitle: string;
+  message: string;
+  date: string;
+  icon: React.ComponentType<any>;
+  amount?: number;
+  updateDescription?: string;
+}
 
 export function DashboardPage() {
   const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null);
   const [projectStatusStats, setProjectStatusStats] = useState<ProjectStatusStats | null>(null);
   const [financialStats, setFinancialStats] = useState<FinancialStats | null>(null);
+  const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const formatDateOnly = (dateString: string): string => {
+    const date = new Date(dateString);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    
+    // Reset time to compare dates only
+    today.setHours(0, 0, 0, 0);
+    yesterday.setHours(0, 0, 0, 0);
+    date.setHours(0, 0, 0, 0);
+    
+    if (date.getTime() === today.getTime()) {
+      return 'Today';
+    } else if (date.getTime() === yesterday.getTime()) {
+      return 'Yesterday';
+    } else {
+      return date.toLocaleDateString('en-US', { 
+        month: 'short', 
+        day: 'numeric',
+        year: date.getFullYear() !== today.getFullYear() ? 'numeric' : undefined
+      });
+    }
+  };
+
+  const truncateText = (text: string, maxLength: number = 60): string => {
+    if (text.length <= maxLength) return text;
+    return text.substring(0, maxLength).trim() + '...';
+  };
+
+  const fetchRecentActivities = async (): Promise<RecentActivity[]> => {
+    try {
+      // Get recent payments, updates, and projects
+      const [payments, updates, projects] = await Promise.all([
+        paymentService.getAllPaymentsWithDetails(),
+        projectUpdateService.getAllUpdatesWithDetails(),
+        projectService.getAllProjectsWithStats()
+      ]);
+
+      const activities: RecentActivity[] = [];
+
+      // Add recent payments (last 30 days)
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+      payments
+        .filter(payment => new Date(payment.created_at) >= thirtyDaysAgo)
+        .forEach(payment => {
+          if (payment.project?.client) {
+            activities.push({
+              id: `payment-${payment.id}`,
+              type: 'payment',
+              clientName: payment.project.client.full_name,
+              projectTitle: payment.project.title,
+              message: `Payment received ${formatCurrency(payment.amount)} for ${truncateText(payment.project.title, 30)}`,
+              date: payment.created_at,
+              icon: PhilippinePeso,
+              amount: payment.amount
+            });
+          }
+        });
+
+      // Add recent project updates (last 30 days)
+      updates
+        .filter(update => new Date(update.created_at) >= thirtyDaysAgo)
+        .forEach(update => {
+          if (update.project?.client) {
+            activities.push({
+              id: `update-${update.id}`,
+              type: 'update',
+              clientName: update.project.client.full_name,
+              projectTitle: update.project.title,
+              message: `Project updates for ${truncateText(update.project.title, 30)}`,
+              date: update.created_at,
+              icon: Edit,
+              updateDescription: update.description
+            });
+          }
+        });
+
+      // Add recently finished projects (last 30 days)
+      projects
+        .filter(project => {
+          if (project.status !== 'Finished') return false;
+          // Assuming projects have an updated_at field, or we can use created_at as a fallback
+          const projectDate = new Date(project.created_at);
+          return projectDate >= thirtyDaysAgo;
+        })
+        .forEach(project => {
+          if (project.client) {
+            activities.push({
+              id: `project-finished-${project.id}`,
+              type: 'project_finished',
+              clientName: project.client.full_name,
+              projectTitle: project.title,
+              message: `Project completed for ${truncateText(project.title, 30)}`,
+              date: project.created_at,
+              icon: CheckCircle
+            });
+          }
+        });
+
+      // Add recently started projects (last 30 days)
+      projects
+        .filter(project => {
+          if (project.status !== 'Started') return false;
+          const projectDate = new Date(project.created_at);
+          return projectDate >= thirtyDaysAgo;
+        })
+        .forEach(project => {
+          if (project.client) {
+            activities.push({
+              id: `project-started-${project.id}`,
+              type: 'project_started',
+              clientName: project.client.full_name,
+              projectTitle: project.title,
+              message: `New project started from ${project.client.full_name} for ${truncateText(project.title, 30)}`,
+              date: project.created_at,
+              icon: PlayCircle
+            });
+          }
+        });
+
+      // Sort by date (most recent first) and limit to 4 items
+      return activities
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+        .slice(0, 4);
+
+    } catch (error) {
+      console.error('Error fetching recent activities:', error);
+      return [];
+    }
+  };
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -37,10 +188,11 @@ export function DashboardPage() {
         setError(null);
 
         // Fetch clients, projects, and payments data
-        const [clients, projects, allPayments] = await Promise.all([
+        const [clients, projects, allPayments, activities] = await Promise.all([
           clientService.getAllClientsWithStats(),
           projectService.getAllProjectsWithStats(),
-          paymentService.getAllPaymentsWithDetails()
+          paymentService.getAllPaymentsWithDetails(),
+          fetchRecentActivities()
         ]);
 
         // Calculate dashboard statistics
@@ -85,6 +237,9 @@ export function DashboardPage() {
           totalPaid,
           outstanding
         });
+
+        // Set recent activities
+        setRecentActivities(activities);
 
       } catch (err) {
         console.error('Error fetching dashboard data:', err);
@@ -133,37 +288,6 @@ export function DashboardPage() {
     },
   ];
 
-  const recentActivities = [
-    {
-      id: 1,
-      type: "payment",
-      message: 'Lorem Ipsum is simply dummy text of the printing.',
-      date: "4 hours ago",
-      icon:   PhilippinePeso
-    },
-    {
-      id: 2,
-      type: "update",
-      message: 'Lorem Ipsum is simply dummy text of the printing.',
-      date: "7 hours ago",
-      icon: FolderOpen 
-    },
-    {
-      id: 3,
-      type: "payment",
-      message: "Lorem Ipsum is simply dummy text of the printing.",
-      date: "1 day ago",
-      icon:   PhilippinePeso
-    },
-    {
-      id: 4,
-      type: "update",
-      message: "Lorem Ipsum is simply dummy text of the printing.",
-      date: "2 day ago",
-      icon: FolderOpen  
-    },
-  ];
-
   // Project Status Data 
   const projectStatus = [
     { id: 1, label: "Started", value: projectStatusStats.started, icon: PlayCircle },
@@ -177,19 +301,19 @@ export function DashboardPage() {
       id: 1, 
       label: "Total Budget", 
       value: formatCurrency(financialStats.totalBudget), 
-      icon:   PhilippinePeso
+      icon: PhilippinePeso
     },
     { 
       id: 2, 
       label: "Paid", 
       value: formatCurrency(financialStats.totalPaid), 
-      icon:   PhilippinePeso
+      icon: PhilippinePeso
     },
     { 
       id: 3, 
       label: "Outstanding", 
       value: formatCurrency(financialStats.outstanding), 
-      icon:  PhilippinePeso
+      icon: PhilippinePeso
     },
   ];
 
@@ -234,11 +358,6 @@ export function DashboardPage() {
                     <Icon className="h-6 w-6 text-blue-600" />
                   </div>
                 </div>
-                <div className="mt-4 flex items-center">
-                  <span className="text-green-600 text-sm font-medium">
-                    {stat.change}
-                  </span>
-                </div>
               </Card>
             </motion.div>
           );
@@ -247,7 +366,7 @@ export function DashboardPage() {
 
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Recent Activity (UI only, static data) */}
+        {/* Recent Activity (Now Functional) */}
         <motion.div
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
@@ -261,30 +380,50 @@ export function DashboardPage() {
               <Clock className="h-5 w-5 text-gray-400" />
             </div>
             <div className="space-y-4">
-              {recentActivities.map((activity, index) => {
-                const Icon = activity.icon;
-                return (
-                  <motion.div
-                    key={activity.id}
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.6 + index * 0.1 }}
-                    className="flex items-start space-x-3 border border-gray-700 p-4 rounded-lg"
-                  >
-                    <div className="flex-shrink-0">
-                      <div className="h-8 w-8 bg-gray-700 rounded-full flex items-center justify-center">
-                        <Icon className="h-4 w-4 text-gray-300" />
+              {recentActivities.length > 0 ? (
+                recentActivities.slice(0, 4).map((activity, index) => {
+                  const Icon = activity.icon;
+                  return (
+                    <motion.div
+                      key={activity.id}
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.6 + index * 0.1 }}
+                      className="flex items-start space-x-3 border border-gray-700 p-4 rounded-lg"
+                    >
+                      <div className="flex-shrink-0">
+                        <div className="h-8 w-8 bg-gray-700 rounded-full flex items-center justify-center">
+                          <Icon className="h-4 w-4 text-gray-300" />
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-white">{activity.message}</p>
-                      <p className="text-xs text-gray-400 mt-1">
-                        {activity.date}
-                      </p>
-                    </div>
-                  </motion.div>
-                );
-              })}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-white font-medium">
+                          {activity.message}
+                        </p>
+                        <p className="text-xs text-gray-400 mt-1">
+                          Client: {activity.clientName}
+                        </p>
+                        {activity.type === 'update' && activity.updateDescription && (
+                          <p className="text-xs text-gray-300 mt-1">
+                            "{truncateText(activity.updateDescription, 50)}"
+                          </p>
+                        )}
+                        <p className="text-xs text-gray-500 mt-2">
+                          {formatDateOnly(activity.date)}
+                        </p>
+                      </div>
+                    </motion.div>
+                  );
+                })
+              ) : (
+                <div className="text-center py-8">
+                  <Clock className="h-12 w-12 text-gray-600 mx-auto mb-4" />
+                  <p className="text-gray-400">No recent activity</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Activity from the last 30 days will appear here
+                  </p>
+                </div>
+              )}
             </div>
           </Card>
         </motion.div>
