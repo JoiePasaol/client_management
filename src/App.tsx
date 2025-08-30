@@ -10,7 +10,8 @@ import { ClientsPage } from './pages/ClientsPage';
 import { ClientInformation } from './sections/ClientInformation';
 import { ProjectsPage } from './pages/ProjectsPage';
 import { ProjectInformation } from './sections/ProjectInformation';
-import { PortalPage } from './pages/PortalPage';
+import { ClientPortalPage } from './pages/ClientPortalPage';
+
 
 function App() {
   return (
@@ -19,6 +20,8 @@ function App() {
         <ToasterProvider>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
+            {/* Client Portal Route - No authentication required */}
+            <Route path="/client-portal/:token" element={<ClientPortalPage />} />
             <Route
               path="/*"
               element={
@@ -30,7 +33,6 @@ function App() {
               <Route path="dashboard" element={<DashboardPage />} />
               <Route path="clients" element={<ClientsPage />} />
               <Route path="projects" element={<ProjectsPage />} />
-              <Route path="portal" element={<PortalPage />} />
               <Route path="clients/:id" element={<ClientInformation />} />
               <Route path="projects/:id" element={<ProjectInformation />} />
               <Route index element={<Navigate to="/dashboard" replace />} />

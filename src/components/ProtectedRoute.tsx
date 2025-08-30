@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
@@ -7,8 +7,19 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const { user, loading } = useAuth();
+  const { user, loading, refreshSession } = useAuth();
   const location = useLocation();
+
+  useEffect(() => {
+
+    const intervalId = setInterval(() => {
+      if (user) {
+        refreshSession();
+      }
+    }, 50 * 60 * 1000); 
+
+    return () => clearInterval(intervalId);
+  }, [user, refreshSession]);
 
   if (loading) {
     return (

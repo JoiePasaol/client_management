@@ -1,6 +1,6 @@
 import React from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion  } from "framer-motion";
 import {
   Layout,
   Users,
@@ -22,7 +22,7 @@ const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: Layout },
   { name: "Clients", href: "/clients", icon: Users },
   { name: "Projects", href: "/projects", icon: FolderOpen },
-  { name: "Portal", href: "/portal", icon: Globe },
+
 ];
 
 export function Sidebar({ isOpen, onToggle }: SidebarProps) {

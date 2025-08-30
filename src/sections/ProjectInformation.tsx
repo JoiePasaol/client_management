@@ -49,6 +49,7 @@ import { ConfirmDialog } from "../components/ui/Dialog";
 import { RecordPaymentModal } from "../components/RecordPaymentModal";
 import { AddProjectUpdateModal } from "../components/AddProjectUpdateModal";
 import { ProjectModal } from "../components/ProjectModal";
+import { ClientPortalSection } from "../sections/ClientPortal";
 import { useConfirmDialog } from "../hooks/useConfirmDialog";
 import { useModal } from "../hooks/useModal";
 import { usePagination } from "../hooks/usePagination";
@@ -70,7 +71,6 @@ export function ProjectInformation() {
   const editProjectModal = useModal();
   const recordPaymentModal = useModal();
   const addUpdateModal = useModal();
-
 
   // Pagination hooks
   const paymentPagination = usePagination(payments);
@@ -767,8 +767,8 @@ export function ProjectInformation() {
         )}
       </motion.div>
 
-      {/* Project Updates */}
-      <motion.div
+       {/* Project Updates */}
+       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3 }}
@@ -828,12 +828,11 @@ export function ProjectInformation() {
                             </div>
 
                             <ActionButtons
-                             showEdit={false}
+                              showEdit={false}
                               onDelete={() => {
                                 const truncatedDescription =
                                   update.description.length > 50
-                                    ? update.description.substring(0, 50) +
-                                      "..."
+                                    ? update.description.substring(0, 50) + "..."
                                     : update.description;
                                 deleteDialog.openDialog({
                                   type: "update",
@@ -865,6 +864,22 @@ export function ProjectInformation() {
         )}
       </motion.div>
 
+      {/* Client Portal Section */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.4 }}
+      >
+       
+        
+        <ClientPortalSection
+          projectId={project.id}
+          projectTitle={project.title}
+          onSuccess={showSuccess}
+          onError={showError}
+        />
+      </motion.div>
+
       {/* Edit Project Modal */}
       <ProjectModal
         isOpen={editProjectModal.isOpen}
@@ -889,8 +904,6 @@ export function ProjectInformation() {
         onSubmit={handleAddProjectUpdate}
         projectTitle={project?.title}
       />
-
-     
 
       {/* Unified Delete Confirmation Dialog */}
       <ConfirmDialog

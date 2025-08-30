@@ -45,10 +45,18 @@ export interface ProjectUpdate {
   created_at: string
 }
 
+export interface ClientPortal {
+  id: number
+  project_id: number
+  access_token: string
+  is_enabled: boolean
+  created_at: string
+  expires_at?: string
+}
+
 export interface ClientWithProjects extends Client {
   projects: Project[]
 }
-
 
 export interface ProjectWithStats extends Project {
   client: {
@@ -92,7 +100,6 @@ export interface ProjectUpdateWithDetails extends ProjectUpdate {
     }
   }
 }
-
 
 export interface ProjectWithClient {
   id: number
@@ -148,8 +155,7 @@ export interface FinancialStats {
   totalPaid: number;
   outstanding: number;
 }
-
-type ProjectWithClientAndStats = {
+export type ProjectWithClientAndStats = {
   id: number;
   title: string;
   description: string;

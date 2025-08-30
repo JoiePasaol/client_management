@@ -1,3 +1,4 @@
+// src/pages/DashboardPage.tsx (updated)
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
@@ -7,179 +8,42 @@ import {
   Clock,
   CheckCircle,
   PlayCircle,
-  PhilippinePeso,
-  Edit,
-  Trash2
+  PhilippinePeso
 } from "lucide-react";
 import { Card } from "../components/ui/Card";
 import { LoadingState } from "../components/common/LoadingState";
 import { ErrorState } from "../components/common/ErrorState";
-import { 
-  clientService, 
-  projectService,
-  paymentService,
-  projectUpdateService,
-  type DashboardStats,
-  type ProjectStatusStats,
-  type FinancialStats,
-  type PaymentWithDetails,
-  type ProjectUpdateWithDetails,
-  type ProjectWithStats
-} from "../services/database";
 import { formatCurrency } from "../utils/formatters";
+import { dashboardService, type DashboardData } from "../services/dashboardService";
 
-interface RecentActivity {
-  id: string;
-  type: 'payment' | 'update' | 'project_finished' | 'project_started' | 'payment_deleted' | 'update_deleted';
-  clientName: string;
-  projectTitle: string;
-  message: string;
-  date: string;
-  icon: React.ComponentType<any>;
-  amount?: number;
-  updateDescription?: string;
-}
+// Simple cache implementation
+const dashboardCache = {
+  data: null as DashboardData | null,
+  timestamp: 0,
+  ttl: 2 * 60 * 1000, // 2 minutes
+
+  get(): DashboardData | null {
+    if (Date.now() - this.timestamp < this.ttl && this.data) {
+      return this.data;
+    }
+    return null;
+  },
+
+  set(data: DashboardData) {
+    this.data = data;
+    this.timestamp = Date.now();
+  },
+
+  clear() {
+    this.data = null;
+    this.timestamp = 0;
+  }
+};
 
 export function DashboardPage() {
-  const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null);
-  const [projectStatusStats, setProjectStatusStats] = useState<ProjectStatusStats | null>(null);
-  const [financialStats, setFinancialStats] = useState<FinancialStats | null>(null);
-  const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  const formatDateOnly = (dateString: string): string => {
-    const date = new Date(dateString);
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-    
-    // Reset time to compare dates only
-    today.setHours(0, 0, 0, 0);
-    yesterday.setHours(0, 0, 0, 0);
-    date.setHours(0, 0, 0, 0);
-    
-    if (date.getTime() === today.getTime()) {
-      return 'Today';
-    } else if (date.getTime() === yesterday.getTime()) {
-      return 'Yesterday';
-    } else {
-      return date.toLocaleDateString('en-US', { 
-        month: 'short', 
-        day: 'numeric',
-        year: date.getFullYear() !== today.getFullYear() ? 'numeric' : undefined
-      });
-    }
-  };
-
-  const truncateText = (text: string, maxLength: number = 60): string => {
-    if (text.length <= maxLength) return text;
-    return text.substring(0, maxLength).trim() + '...';
-  };
-
-  const fetchRecentActivities = async (): Promise<RecentActivity[]> => {
-    try {
-      // Get recent payments, updates, and projects
-      const [payments, updates, projects] = await Promise.all([
-        paymentService.getAllPaymentsWithDetails(),
-        projectUpdateService.getAllUpdatesWithDetails(),
-        projectService.getAllProjectsWithStats()
-      ]);
-
-      const activities: RecentActivity[] = [];
-
-      // Add recent payments (last 30 days)
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-      payments
-        .filter(payment => new Date(payment.created_at) >= thirtyDaysAgo)
-        .forEach(payment => {
-          if (payment.project?.client) {
-            activities.push({
-              id: `payment-${payment.id}`,
-              type: 'payment',
-              clientName: payment.project.client.full_name,
-              projectTitle: payment.project.title,
-              message: `Payment received ${formatCurrency(payment.amount)} for ${truncateText(payment.project.title, 30)}`,
-              date: payment.created_at,
-              icon: PhilippinePeso,
-              amount: payment.amount
-            });
-          }
-        });
-
-      // Add recent project updates (last 30 days)
-      updates
-        .filter(update => new Date(update.created_at) >= thirtyDaysAgo)
-        .forEach(update => {
-          if (update.project?.client) {
-            activities.push({
-              id: `update-${update.id}`,
-              type: 'update',
-              clientName: update.project.client.full_name,
-              projectTitle: update.project.title,
-              message: `Project updates for ${truncateText(update.project.title, 30)}`,
-              date: update.created_at,
-              icon: Edit,
-              updateDescription: update.description
-            });
-          }
-        });
-
-      // Add recently finished projects (last 30 days)
-      projects
-        .filter(project => {
-          if (project.status !== 'Finished') return false;
-          // Assuming projects have an updated_at field, or we can use created_at as a fallback
-          const projectDate = new Date(project.created_at);
-          return projectDate >= thirtyDaysAgo;
-        })
-        .forEach(project => {
-          if (project.client) {
-            activities.push({
-              id: `project-finished-${project.id}`,
-              type: 'project_finished',
-              clientName: project.client.full_name,
-              projectTitle: project.title,
-              message: `Project completed for ${truncateText(project.title, 30)}`,
-              date: project.created_at,
-              icon: CheckCircle
-            });
-          }
-        });
-
-      // Add recently started projects (last 30 days)
-      projects
-        .filter(project => {
-          if (project.status !== 'Started') return false;
-          const projectDate = new Date(project.created_at);
-          return projectDate >= thirtyDaysAgo;
-        })
-        .forEach(project => {
-          if (project.client) {
-            activities.push({
-              id: `project-started-${project.id}`,
-              type: 'project_started',
-              clientName: project.client.full_name,
-              projectTitle: project.title,
-              message: `New project started from ${project.client.full_name} for ${truncateText(project.title, 30)}`,
-              date: project.created_at,
-              icon: PlayCircle
-            });
-          }
-        });
-
-      // Sort by date (most recent first) and limit to 4 items
-      return activities
-        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-        .slice(0, 4);
-
-    } catch (error) {
-      console.error('Error fetching recent activities:', error);
-      return [];
-    }
-  };
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -187,59 +51,17 @@ export function DashboardPage() {
         setLoading(true);
         setError(null);
 
-        // Fetch clients, projects, and payments data
-        const [clients, projects, allPayments, activities] = await Promise.all([
-          clientService.getAllClientsWithStats(),
-          projectService.getAllProjectsWithStats(),
-          paymentService.getAllPaymentsWithDetails(),
-          fetchRecentActivities()
-        ]);
+        // Check cache first
+        const cachedData = dashboardCache.get();
+        if (cachedData) {
+          setDashboardData(cachedData);
+          setLoading(false);
+          return;
+        }
 
-        // Calculate dashboard statistics
-        const totalClients = clients.length;
-        const totalProjects = projects.length;
-        const totalBudget = projects.reduce((sum, project) => sum + (project.budget || 0), 0);
-        const totalPaid = projects.reduce((sum, project) => sum + (project.total_paid || 0), 0);
-        
-        // Calculate monthly revenue (last 30 days of payments)
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-        
-        const monthlyRevenue = allPayments
-          .filter(payment => new Date(payment.payment_date) >= thirtyDaysAgo)
-          .reduce((sum, payment) => sum + (payment.amount || 0), 0);
-        
-        // Calculate total revenue (all payments)
-        const totalRevenue = allPayments.reduce((sum, payment) => sum + (payment.amount || 0), 0);
-        
-        setDashboardStats({
-          totalClients,
-          totalProjects,
-          monthlyRevenue,
-          totalRevenue
-        });
-
-        // Calculate project status statistics
-        const startedProjects = projects.filter(p => p.status === 'Started').length;
-        const finishedProjects = projects.filter(p => p.status === 'Finished').length;
-        
-        setProjectStatusStats({
-          started: startedProjects,
-          finished: finishedProjects,
-          total: totalProjects
-        });
-
-        // Calculate financial statistics
-        const outstanding = totalBudget - totalPaid;
-        
-        setFinancialStats({
-          totalBudget,
-          totalPaid,
-          outstanding
-        });
-
-        // Set recent activities
-        setRecentActivities(activities);
+        const data = await dashboardService.getDashboardData();
+        setDashboardData(data);
+        dashboardCache.set(data);
 
       } catch (err) {
         console.error('Error fetching dashboard data:', err);
@@ -250,13 +72,35 @@ export function DashboardPage() {
     };
 
     fetchDashboardData();
+
+    // Refresh data every 5 minutes
+    const intervalId = setInterval(fetchDashboardData, 5 * 60 * 1000);
+    return () => clearInterval(intervalId);
   }, []);
+
+  const highlightAmounts = (message: string) => {
+    if (!message) return '';
+    
+    const currencyPatterns = [
+      /₱[\d,]+(?:\.\d{2})?/g, 
+    ];
+
+    let highlightedMessage = message;
+    
+    currencyPatterns.forEach(pattern => {
+      highlightedMessage = highlightedMessage.replace(pattern, (match) => {
+        return `<span class="text-green-400 font-semibold">${match}</span>`;
+      });
+    });
+
+    return highlightedMessage;
+  };
 
   if (loading) {
     return <LoadingState message="Loading dashboard..." />;
   }
 
-  if (error || !dashboardStats || !projectStatusStats || !financialStats) {
+  if (error || !dashboardData) {
     return (
       <ErrorState 
         message={error || "Failed to load dashboard data"} 
@@ -265,54 +109,74 @@ export function DashboardPage() {
     );
   }
 
-  const stats = [
+  // Defensive programming: ensure all required properties exist with defaults
+  const stats = dashboardData.stats || {
+    totalClients: 0,
+    totalProjects: 0,
+    monthlyRevenue: 0,
+    totalRevenue: 0
+  };
+
+  const projectStatus = dashboardData.projectStatus || {
+    started: 0,
+    finished: 0,
+    total: 0
+  };
+
+  const financials = dashboardData.financials || {
+    totalBudget: 0,
+    totalPaid: 0,
+    outstanding: 0
+  };
+
+  const activities = dashboardData.activities || [];
+
+  const statsCards = [
     {
       name: "Total Clients",
-      value: dashboardStats.totalClients.toString(),
+      value: stats.totalClients.toString(),
       icon: Users,
     },
     {
       name: "Total Projects",
-      value: dashboardStats.totalProjects.toString(),
+      value: stats.totalProjects.toString(),
       icon: FolderOpen,
     },
     {
       name: "Monthly Revenue",
-      value: formatCurrency(dashboardStats.monthlyRevenue),
+      value: formatCurrency(stats.monthlyRevenue),
       icon: TrendingUp,
     },
     {
       name: "Total Revenue",
-      value: formatCurrency(dashboardStats.totalRevenue),
+      value: formatCurrency(stats.totalRevenue),
       icon: TrendingUp,
     },
   ];
 
-  // Project Status Data 
-  const projectStatus = [
-    { id: 1, label: "Started", value: projectStatusStats.started, icon: PlayCircle },
-    { id: 2, label: "Finished", value: projectStatusStats.finished, icon: CheckCircle },
-    { id: 3, label: "Total", value: projectStatusStats.total, icon: FolderOpen },
+  const projectStatusData = [
+    { id: 1, label: "Started", value: projectStatus.started, icon: PlayCircle },
+    { id: 2, label: "Finished", value: projectStatus.finished, icon: CheckCircle },
+    { id: 3, label: "Total", value: projectStatus.total, icon: FolderOpen },
   ];
 
-  // Financial Overview Data 
   const financialOverview = [
     { 
       id: 1, 
       label: "Total Budget", 
-      value: formatCurrency(financialStats.totalBudget), 
+      value: formatCurrency(financials.totalBudget), 
       icon: PhilippinePeso
     },
     { 
       id: 2, 
       label: "Paid", 
-      value: formatCurrency(financialStats.totalPaid), 
+      value: formatCurrency(financials.totalPaid), 
       icon: PhilippinePeso
     },
     { 
       id: 3, 
       label: "Outstanding", 
-      value: formatCurrency(financialStats.outstanding), 
+      value: formatCurrency(financials.outstanding), 
       icon: PhilippinePeso
     },
   ];
@@ -335,7 +199,7 @@ export function DashboardPage() {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((stat, index) => {
+        {statsCards.map((stat, index) => {
           const Icon = stat.icon;
           return (
             <motion.div
@@ -366,7 +230,7 @@ export function DashboardPage() {
 
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Recent Activity (Now Functional) */}
+        {/* Recent Activity */}
         <motion.div
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
@@ -379,17 +243,26 @@ export function DashboardPage() {
               </h3>
               <Clock className="h-5 w-5 text-gray-400" />
             </div>
-            <div className="space-y-4">
-              {recentActivities.length > 0 ? (
-                recentActivities.slice(0, 4).map((activity, index) => {
-                  const Icon = activity.icon;
+            
+            {!activities || activities.length === 0 ? (
+              <div className="text-center py-8">
+                <Clock className="h-12 w-12 text-gray-600 mx-auto mb-3" />
+                <p className="text-gray-400 text-sm">No recent activities</p>
+              </div>
+            ) : (
+              <div className="space-y-4 max-h-96 overflow-y-auto">
+                {activities.map((activity, index) => {
+                  if (!activity || !activity.id) return null;
+                  
+                  const Icon = activity.icon_type === 'peso' ? PhilippinePeso : FolderOpen;
+                  
                   return (
                     <motion.div
                       key={activity.id}
                       initial={{ opacity: 0, x: 20 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: 0.6 + index * 0.1 }}
-                      className="flex items-start space-x-3 border border-gray-700 p-4 rounded-lg"
+                      className="flex items-start space-x-3 border border-gray-700 p-4 rounded-lg hover:border-gray-600 transition-colors"
                     >
                       <div className="flex-shrink-0">
                         <div className="h-8 w-8 bg-gray-700 rounded-full flex items-center justify-center">
@@ -397,38 +270,25 @@ export function DashboardPage() {
                         </div>
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm text-white font-medium">
-                          {activity.message}
-                        </p>
+                        <p 
+                          className="text-sm text-white leading-relaxed"
+                          dangerouslySetInnerHTML={{ 
+                            __html: highlightAmounts(activity.message || '') 
+                          }}
+                        />
                         <p className="text-xs text-gray-400 mt-1">
-                          Client: {activity.clientName}
-                        </p>
-                        {activity.type === 'update' && activity.updateDescription && (
-                          <p className="text-xs text-gray-300 mt-1">
-                            "{truncateText(activity.updateDescription, 50)}"
-                          </p>
-                        )}
-                        <p className="text-xs text-gray-500 mt-2">
-                          {formatDateOnly(activity.date)}
+                          {activity.date || ''}
                         </p>
                       </div>
                     </motion.div>
                   );
-                })
-              ) : (
-                <div className="text-center py-8">
-                  <Clock className="h-12 w-12 text-gray-600 mx-auto mb-4" />
-                  <p className="text-gray-400">No recent activity</p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Activity from the last 30 days will appear here
-                  </p>
-                </div>
-              )}
-            </div>
+                })}
+              </div>
+            )}
           </Card>
         </motion.div>
 
-        {/* Quick Insight (functional) */}
+        {/* Quick Insight */}
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
@@ -448,7 +308,7 @@ export function DashboardPage() {
                 Project Status
               </h4>
               <div className="space-y-3">
-                {projectStatus.map((item, index) => {
+                {projectStatusData.map((item, index) => {
                   const Icon = item.icon;
                   return (
                     <motion.div

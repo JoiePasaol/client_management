@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+// src/context/AuthContext.tsx (updated)
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import type { User, Session } from '@supabase/supabase-js';
 
@@ -8,6 +9,7 @@ interface AuthContextType {
   loading: boolean;
   signIn: (username: string, password: string) => Promise<{ error?: string }>;
   signOut: () => Promise<void>;
+  refreshSession: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -16,32 +18,105 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [retryCount, setRetryCount] = useState(0);
+
+  const refreshSession = useCallback(async (retry = 0): Promise<void> => {
+    try {
+      const { data: { session }, error } = await supabase.auth.refreshSession();
+      
+      if (error) {
+        if (retry < 3) {
+          // Exponential backoff
+          await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retry)));
+          return refreshSession(retry + 1);
+        }
+        console.error('Error refreshing session after retries:', error);
+        await signOut();
+        return;
+      }
+      
+      setSession(session);
+      setUser(session?.user ?? null);
+      setRetryCount(0); // Reset retry count on success
+    } catch (err) {
+      console.error('Unexpected error refreshing session:', err);
+      if (retry < 3) {
+        await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retry)));
+        return refreshSession(retry + 1);
+      }
+      await signOut();
+    }
+  }, []);
 
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
+    let mounted = true;
+    let authStateSubscription: any;
+
+    const initializeAuth = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error('Error getting session:', error);
+          if (mounted) {
+            setSession(null);
+            setUser(null);
+          }
+        } else if (mounted) {
+          setSession(session);
+          setUser(session?.user ?? null);
+        }
+      } catch (err) {
+        console.error('Unexpected error during auth initialization:', err);
+        if (mounted) {
+          setSession(null);
+          setUser(null);
+        }
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    initializeAuth();
+
+    // Listen for auth changes with improved handling
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!mounted) return;
+
+      console.log('Auth state changed:', event);
+      
+      switch (event) {
+        case 'SIGNED_OUT':
+        case 'USER_DELETED':
+          setSession(null);
+          setUser(null);
+          break;
+        case 'SIGNED_IN':
+        case 'TOKEN_REFRESHED':
+        case 'USER_UPDATED':
+          setSession(session);
+          setUser(session?.user ?? null);
+          break;
+        case 'INITIAL_SESSION':
+          // Already handled by getSession()
+          break;
+      }
+      
       setLoading(false);
     });
 
-    // Listen for auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signIn = async (username: string, password: string) => {
     try {
-      // Supabase auth expects an email and password
       const { data, error } = await supabase.auth.signInWithPassword({
-        email: username, // Replace with actual email if you have it
+        email: username, 
         password,
       });
   
@@ -49,15 +124,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { error: error.message };
       }
   
-      return {}; // Login successful
+      return {};
     } catch (err) {
-      return { error: 'An unexpected error occurred' };
+      console.error('Sign in error:', err);
+      return { error: 'An unexpected error occurred during sign in' };
     }
   };
   
-
   const signOut = async () => {
-    await supabase.auth.signOut();
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error('Sign out error:', error);
+      }
+      setSession(null);
+      setUser(null);
+    } catch (err) {
+      console.error('Unexpected error during sign out:', err);
+      setSession(null);
+      setUser(null);
+    }
   };
 
   const value = {
@@ -66,6 +152,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     loading,
     signIn,
     signOut,
+    refreshSession,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
