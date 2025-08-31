@@ -6,7 +6,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+   "start": "ts-node --project tsconfig.app.json src/main.tsx"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.1",
