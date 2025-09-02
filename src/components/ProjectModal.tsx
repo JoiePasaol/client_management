@@ -26,8 +26,8 @@ const createProjectSchema = (requireClientSelection: boolean) => z.object({
   deadline: z.string().min(1, "Deadline is required"),
   budget: z.string().min(1, "Budget is required"),
   status: z.enum(["Started", "Finished"], {
-    required_error: "Please select a project status",
-  }),
+  message: "Please select a project status",
+}),
 });
 
 
@@ -52,9 +52,9 @@ interface ProjectModalProps {
   onClose: () => void;
   onSubmit: (data: any & { invoice?: File }) => void;
   onUpdate?: (projectId: number, data: any & { invoice?: File }) => void;
-  clientName?: string; // If provided, we're adding to a specific client
-  clientId?: number; // If provided, we're adding to a specific client
-  editingProject?: ProjectForEdit; // If provided, we're editing this project
+  clientName?: string; 
+  clientId?: number; 
+  editingProject?: ProjectForEdit; 
 }
 
 type ClientOption = {

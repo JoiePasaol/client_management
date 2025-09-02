@@ -1,26 +1,32 @@
-# Use Node 20
-FROM node:20
-
-# Set working directory
+# -----------------
+# Base image
+# -----------------
+FROM node:20 AS base
 WORKDIR /app
-
-# Copy package files first (for caching)
-COPY package*.json ./
-COPY tsconfig*.json ./
-
-# Install dependencies
+COPY package*.json tsconfig*.json ./
 RUN npm install
 
-# Copy the rest of the files
+# -----------------
+# Development image
+# -----------------
+FROM base AS dev
 COPY . .
-
-# Expose port Vite uses
 EXPOSE 5173
-
-# Set environment variable to ensure Vite binds to all interfaces
 ENV HOST=0.0.0.0
 ENV PORT=5173
-
-# Run Vite dev server with explicit host
 CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
 
+# -----------------
+# Production build
+# -----------------
+FROM base AS build
+COPY . .
+RUN npm run build
+
+# -----------------
+# Production runtime (Nginx serving static files)
+# -----------------
+FROM nginx:alpine AS prod
+COPY --from=build /app/dist /usr/share/nginx/html
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]

@@ -343,9 +343,9 @@ export function ClientsPage() {
       <ClientModal
         isOpen={editClientModal.isOpen}
         onClose={editClientModal.closeModal}
-        onSubmit={handleAddClient} // Still needed for type compatibility
-        onUpdate={handleUpdateClient} // Handler for updates
-        editingClient={editClientModal.data}
+        onSubmit={handleAddClient} 
+        onUpdate={handleUpdateClient} 
+        editingClient={editClientModal.data || undefined}
       />
 
       {/* Delete Confirmation Dialog */}

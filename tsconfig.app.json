@@ -1,3 +1,5 @@
+// tsconfig.app.json
+
 {
   "compilerOptions": {
       "baseUrl": "./",
@@ -21,7 +23,6 @@
     "skipLibCheck": true,
      "typeRoots": [
       "node_modules/@types",
-      "src"
     ],
 
     /* Bundler mode */

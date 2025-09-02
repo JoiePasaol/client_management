@@ -1,12 +1,11 @@
 // src/pages/ClientPortalPage.tsx
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
   Calendar,
   PhilippinePeso,
   User,
-  Building2,
   Clock,
   CheckCircle,
   FileText,
@@ -134,7 +133,7 @@ export function ClientPortalPage() {
 
               {/* Status Badge */}
               <div className="flex justify-center">
-                <StatusBadge status={project.status} size="lg" />
+                <StatusBadge status={project.status} />
               </div>
 
               {/* Stats Grid */}

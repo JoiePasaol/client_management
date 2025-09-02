@@ -437,7 +437,8 @@ export function ProjectsPage() {
         isOpen={editProjectModal.isOpen}
         onClose={editProjectModal.closeModal}
         onUpdate={handleUpdateProject}
-        editingProject={editProjectModal.data}
+        editingProject={editProjectModal.data || undefined}
+         onSubmit={handleAddProject} 
       />
 
       {/* Delete Confirmation Dialog */}

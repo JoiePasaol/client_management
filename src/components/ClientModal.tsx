@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -30,7 +30,7 @@ interface ClientModalProps {
   onClose: () => void;
   onSubmit: (data: ClientForm) => void;
   onUpdate?: (clientId: number, data: ClientForm) => void;
-  editingClient?: ClientForEdit; // If provided, we're editing this client
+  editingClient?: ClientForEdit;
 }
 
 export function ClientModal({

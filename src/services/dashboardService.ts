@@ -128,145 +128,145 @@ export const dashboardService = {
     return data || [];
   },
 
-  async getRecentActivities(limit: number = 4) {
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    
-    const activities: any[] = [];
-    
-    try {
-      // Get recent payments
-      const { data: payments, error: paymentsError } = await supabase
-        .from('payments')
-        .select(`
-          id,
-          amount,
-          created_at,
-          project_id,
-          project:projects(
-            title,
-            client:clients(full_name, company_name)
-          )
-        `)
-        .gte('created_at', thirtyDaysAgo.toISOString())
-        .order('created_at', { ascending: false })
-        .limit(limit);
-
-      if (paymentsError) {
-        console.error('Error fetching payments for activities:', paymentsError);
-      } else {
-        payments?.forEach(payment => {
-          const clientName = payment.project?.client?.full_name || payment.project?.client?.company_name || 'Unknown Client';
-          const projectTitle = payment.project?.title || 'Unknown Project';
-          
-          activities.push({
-            id: `payment-${payment.id}`,
-            type: 'payment_received',
-            message: `Payment received ₱${payment.amount?.toLocaleString()} from ${clientName} for ${projectTitle}`,
-            date: new Date(payment.created_at).toLocaleDateString('en-US', {
-              month: '2-digit',
-              day: '2-digit',
-              year: 'numeric'
-            }),
-            icon_type: 'peso' as const,
-            project_id: payment.project_id,
-            client_name: clientName,
-            project_title: projectTitle,
-            amount: payment.amount
-          });
-        });
-      }
-
-      // Get recent project updates
-      const { data: updates, error: updatesError } = await supabase
-        .from('project_updates')
-        .select(`
-          id,
-          description,
-          created_at,
-          project_id,
-          project:projects(
-            title,
-            client:clients(full_name, company_name)
-          )
-        `)
-        .gte('created_at', thirtyDaysAgo.toISOString())
-        .order('created_at', { ascending: false })
-        .limit(limit);
-
-      if (updatesError) {
-        console.error('Error fetching updates for activities:', updatesError);
-      } else {
-        updates?.forEach(update => {
-          const clientName = update.project?.client?.full_name || update.project?.client?.company_name || 'Unknown Client';
-          const projectTitle = update.project?.title || 'Unknown Project';
-          const description = update.description?.length > 50 ? `${update.description.slice(0, 50)}...` : update.description;
-          
-          activities.push({
-            id: `update-${update.id}`,
-            type: 'project_updated',
-            message: `Project updated: ${description} for ${projectTitle} ${clientName}`,
-            date: new Date(update.created_at).toLocaleDateString('en-US', {
-              month: '2-digit',
-              day: '2-digit',
-              year: 'numeric'
-            }),
-            icon_type: 'folder' as const,
-            project_id: update.project_id,
-            client_name: clientName,
-            project_title: projectTitle
-          });
-        });
-      }
-
-      // Fixed: Only use created_at, no updated_at references
-      const { data: finishedProjects, error: projectsError } = await supabase
-        .from('projects')
-        .select(`
-          id,
+async getRecentActivities(limit: number = 4) {
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  
+  const activities: any[] = [];
+  
+  try {
+    // Get recent payments
+    const { data: payments, error: paymentsError } = await supabase
+      .from('payments')
+      .select(`
+        id,
+        amount,
+        created_at,
+        project_id,
+        project:projects(
           title,
-          created_at,
           client:clients(full_name, company_name)
-        `)
-        .eq('status', 'Finished')
-        .gte('created_at', thirtyDaysAgo.toISOString())
-        .order('created_at', { ascending: false })
-        .limit(limit);
+        )
+      `)
+      .gte('created_at', thirtyDaysAgo.toISOString())
+      .order('created_at', { ascending: false })
+      .limit(20); // Get more to ensure we have enough after sorting
 
-      if (projectsError) {
-        console.error('Error fetching finished projects for activities:', projectsError);
-      } else {
-        finishedProjects?.forEach(project => {
-          const clientName = project.client?.full_name || project.client?.company_name || 'Unknown Client';
-          
-          activities.push({
-            id: `project-finished-${project.id}`,
-            type: 'project_finished',
-            message: `Project completed: ${project.title} for ${clientName}`,
-            date: new Date(project.created_at).toLocaleDateString('en-US', {
-              month: '2-digit',
-              day: '2-digit',
-              year: 'numeric'
-            }),
-            icon_type: 'folder' as const,
-            project_id: project.id,
-            client_name: clientName,
-            project_title: project.title
-          });
+    if (!paymentsError && payments) {
+      payments.forEach(payment => {
+        const clientName = payment.project?.client?.full_name || payment.project?.client?.company_name || 'Unknown Client';
+        const projectTitle = payment.project?.title || 'Unknown Project';
+        
+        activities.push({
+          id: `payment-${payment.id}`,
+          type: 'payment_received',
+          message: `Payment received ₱${payment.amount?.toLocaleString()} from ${clientName} for ${projectTitle}`,
+          date: new Date(payment.created_at).toLocaleDateString('en-US', {
+            month: '2-digit',
+            day: '2-digit',
+            year: 'numeric'
+          }),
+          created_at: payment.created_at, // Keep original timestamp for sorting
+          icon_type: 'peso' as const,
+          project_id: payment.project_id,
+          client_name: clientName,
+          project_title: projectTitle,
+          amount: payment.amount
         });
-      }
-
-      activities.sort((a, b) => {
-        const dateA = new Date(a.date.split('/').reverse().join('-'));
-        const dateB = new Date(b.date.split('/').reverse().join('-'));
-        return dateB.getTime() - dateA.getTime();
       });
-      
-      return activities.slice(0, limit);
-      
-    } catch (error) {
-      console.error('Error fetching recent activities:', error);
-      return [];
     }
+
+    // Get recent project updates
+    const { data: updates, error: updatesError } = await supabase
+      .from('project_updates')
+      .select(`
+        id,
+        description,
+        created_at,
+        project_id,
+        project:projects(
+          title,
+          client:clients(full_name, company_name)
+        )
+      `)
+      .gte('created_at', thirtyDaysAgo.toISOString())
+      .order('created_at', { ascending: false })
+      .limit(20); // Get more to ensure we have enough after sorting
+
+    if (!updatesError && updates) {
+      updates.forEach(update => {
+        const clientName = update.project?.client?.full_name || update.project?.client?.company_name || 'Unknown Client';
+        const projectTitle = update.project?.title || 'Unknown Project';
+        const description = update.description?.length > 50 ? `${update.description.slice(0, 50)}...` : update.description;
+        
+        activities.push({
+          id: `update-${update.id}`,
+          type: 'project_updated',
+          message: `Project updated: ${description} for ${projectTitle} (${clientName})`,
+          date: new Date(update.created_at).toLocaleDateString('en-US', {
+            month: '2-digit',
+            day: '2-digit',
+            year: 'numeric'
+          }),
+          created_at: update.created_at, // Keep original timestamp for sorting
+          icon_type: 'folder' as const,
+          project_id: update.project_id,
+          client_name: clientName,
+          project_title: projectTitle
+        });
+      });
+    }
+
+    // Get recently finished projects
+    const { data: finishedProjects, error: projectsError } = await supabase
+      .from('projects')
+      .select(`
+        id,
+        title,
+        created_at,
+        status_updated_at,
+        client:clients(full_name, company_name)
+      `)
+      .eq('status', 'Finished')
+      .gte('created_at', thirtyDaysAgo.toISOString())
+      .order('created_at', { ascending: false })
+      .limit(20); // Get more to ensure we have enough after sorting
+
+    if (!projectsError && finishedProjects) {
+      finishedProjects.forEach(project => {
+        const clientName = project.client?.full_name || project.client?.company_name || 'Unknown Client';
+        
+        activities.push({
+          id: `project-finished-${project.id}`,
+          type: 'project_finished',
+          message: `Project completed: ${project.title} for ${clientName}`,
+          date: new Date(project.created_at).toLocaleDateString('en-US', {
+            month: '2-digit',
+            day: '2-digit',
+            year: 'numeric'
+          }),
+          created_at: project.created_at, // Keep original timestamp for sorting
+          icon_type: 'folder' as const,
+          project_id: project.id,
+          client_name: clientName,
+          project_title: project.title
+        });
+      });
+    }
+
+    // Sort by actual timestamp (most recent first) and limit to 4
+    activities.sort((a, b) => {
+      const dateA = new Date(a.created_at);
+      const dateB = new Date(b.created_at);
+      return dateB.getTime() - dateA.getTime();
+    });
+    
+    // Return only the 4 most recent activities
+    return activities.slice(0, limit);
+    
+  } catch (error) {
+    console.error('Error fetching recent activities:', error);
+    return [];
   }
+}
 };

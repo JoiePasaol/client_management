@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
@@ -368,7 +368,7 @@ export function ProjectInformation() {
         const updated = [newUpdate, ...prev];
         return updated.sort(
           (a, b) =>
-            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
         );
       });
 
@@ -599,7 +599,7 @@ export function ProjectInformation() {
             <div className="space-y-4">
               <div className="flex justify-between items-center">
                 <h3 className="text-lg font-medium text-white">
-                  Payment Progress
+                  Payment Progresss
                 </h3>
                 <div className="flex items-center space-x-3">
                   <StatusBadge status={project.status} />
