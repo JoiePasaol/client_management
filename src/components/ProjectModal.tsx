@@ -7,7 +7,6 @@ import { Modal } from "./ui/Modal";
 import { Button } from "./ui/Button";
 import { clientService } from "../services/database";
 
-// Define schema based on whether client selection is needed
 const createProjectSchema = (requireClientSelection: boolean) => z.object({
   ...(requireClientSelection && {
     clientId: z.preprocess(
@@ -19,19 +18,16 @@ const createProjectSchema = (requireClientSelection: boolean) => z.object({
     ).refine((val) => val !== undefined, {
       message: "Select a client",
     }),
-    
   }),
   title: z.string().min(1, "Project title is required"),
   description: z.string().min(1, "Project description is required"),
   deadline: z.string().min(1, "Deadline is required"),
   budget: z.string().min(1, "Budget is required"),
   status: z.enum(["Started", "Finished"], {
-  message: "Please select a project status",
-}),
+    message: "Please select a project status",
+  }),
 });
 
-
-// Project type for editing
 type ProjectForEdit = {
   id: number;
   title: string;
@@ -78,7 +74,6 @@ export function ProjectModal({
   const [loadingClients, setLoadingClients] = useState(false);
   const [clientDropdownOpen, setClientDropdownOpen] = useState(false);
 
-  // Determine if we need client selection
   const needsClientSelection = !clientId && !editingProject;
   const isEditing = !!editingProject;
   
@@ -100,14 +95,12 @@ export function ProjectModal({
   const watchedStatus = watch("status");
   const watchedClientId = needsClientSelection ? watch("clientId" as keyof ProjectForm) : (clientId || editingProject?.client.id);
 
-  // Load clients when modal opens and client selection is needed
   useEffect(() => {
     if (isOpen && needsClientSelection) {
       loadClients();
     }
   }, [isOpen, needsClientSelection]);
 
-  // Set form values when editing
   useEffect(() => {
     if (isOpen && editingProject) {
       setValue("title", editingProject.title);
@@ -115,12 +108,9 @@ export function ProjectModal({
       setValue("deadline", editingProject.deadline);
       setValue("budget", `$${editingProject.budget.toLocaleString()}`);
       setValue("status", editingProject.status);
-      
-      // Don't need to set clientId as it's handled by the existing client
     }
   }, [isOpen, editingProject, setValue]);
 
-  // Reset form when modal closes or opens for new project
   useEffect(() => {
     if (isOpen && !editingProject) {
       reset({
@@ -149,20 +139,9 @@ export function ProjectModal({
   const handleFormSubmit = async (data: ProjectForm) => {
     try {
       if (isEditing && editingProject && onUpdate) {
-        // Handle update
-        const updateData = {
-          ...data,
-          invoice: selectedFile || undefined
-        };
-        await onUpdate(editingProject.id, updateData);
+        await onUpdate(editingProject.id, { ...data, invoice: selectedFile || undefined });
       } else {
-        // Handle create
-        const submitData = {
-          ...data,
-          ...(clientId && { clientId }),
-          invoice: selectedFile || undefined
-        };
-        await onSubmit(submitData);
+        await onSubmit({ ...data, ...(clientId && { clientId }), invoice: selectedFile || undefined });
       }
       
       reset();
@@ -183,11 +162,7 @@ export function ProjectModal({
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (e.type === "dragenter" || e.type === "dragover") {
-      setDragActive(true);
-    } else if (e.type === "dragleave") {
-      setDragActive(false);
-    }
+    setDragActive(e.type === "dragenter" || e.type === "dragover");
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -195,29 +170,21 @@ export function ProjectModal({
     e.stopPropagation();
     setDragActive(false);
 
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      const file = e.dataTransfer.files[0];
-      if (file.type === "application/pdf") {
-        setSelectedFile(file);
-      } else {
-        alert("Please select a PDF file");
-      }
+    const file = e.dataTransfer.files?.[0];
+    if (file?.type === "application/pdf") {
+      setSelectedFile(file);
+    } else {
+      alert("Please select a PDF file");
     }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      if (file.type === "application/pdf") {
-        setSelectedFile(file);
-      } else {
-        alert("Please select a PDF file");
-      }
+    const file = e.target.files?.[0];
+    if (file?.type === "application/pdf") {
+      setSelectedFile(file);
+    } else {
+      alert("Please select a PDF file");
     }
-  };
-
-  const removeFile = () => {
-    setSelectedFile(null);
   };
 
   const handleClientSelect = (selectedClientId: number) => {
@@ -230,42 +197,25 @@ export function ProjectModal({
     ? clients.find(client => client.id === watchedClientId)
     : null;
 
-  // Determine modal title
   const getModalTitle = () => {
-    if (isEditing) {
-      return `Edit Project: ${editingProject?.title}`;
-    }
-    if (clientName) {
-      return `Add Project for ${clientName}`;
-    }
+    if (isEditing) return `Edit Project: ${editingProject?.title}`;
+    if (clientName) return `Add Project for ${clientName}`;
     return "Add New Project";
   };
 
-  // Get current client info for display
   const getCurrentClient = () => {
-    if (editingProject) {
-      return editingProject.client;
-    }
-    if (selectedClient) {
-      return selectedClient;
-    }
+    if (editingProject) return editingProject.client;
+    if (selectedClient) return selectedClient;
     return null;
   };
 
   const currentClient = getCurrentClient();
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={handleClose}
-      title={getModalTitle()}
-    >
+    <Modal isOpen={isOpen} onClose={handleClose} title={getModalTitle()}>
       <div className="overflow-y-auto max-h-[calc(90vh-8rem)]">
-        <form
-          onSubmit={handleSubmit(handleFormSubmit)}
-          className="space-y-6 p-6"
-        >
-          {/* Client Selection - Only show when needed and not editing */}
+        <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6 p-6">
+          {/* Client Selection */}
           {needsClientSelection && !isEditing && (
             <div>
               <label className="block text-sm font-medium text-gray-200 mb-2">
@@ -275,7 +225,7 @@ export function ProjectModal({
                 <button
                   type="button"
                   onClick={() => setClientDropdownOpen(!clientDropdownOpen)}
-                  className={`w-full px-3 py-2 bg-gray-700 focus:outline-none border border-gray-600 rounded-lg text-left flex items-center justify-between focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                  className={`w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-left flex items-center justify-between focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
                     selectedClient ? 'text-white' : 'text-gray-400'
                   }`}
                 >
@@ -298,7 +248,7 @@ export function ProjectModal({
                 </button>
 
                 {clientDropdownOpen && (
-                  <div className="absolute z-50 w-full mt-1 bg-gray-700 focus:outline-none border border-gray-600 rounded-lg shadow-lg max-h-60 overflow-auto">
+                  <div className="absolute z-50 w-full mt-1 bg-gray-700 border border-gray-600 rounded-lg shadow-lg max-h-60 overflow-auto">
                     {loadingClients ? (
                       <div className="px-3 py-2 text-gray-400 text-center">Loading clients...</div>
                     ) : clients.length === 0 ? (
@@ -309,7 +259,7 @@ export function ProjectModal({
                           key={client.id}
                           type="button"
                           onClick={() => handleClientSelect(client.id)}
-                          className="w-full px-3 py-2 text-left hover:bg-gray-800 focus:bg-gray-800 focus:outline-none transition-colors"
+                          className="w-full px-3 py-2 text-left hover:bg-gray-800 focus:bg-gray-800 transition-colors"
                         >
                           <div className="text-white">{client.full_name}</div>
                           <div className="text-gray-400 text-sm">{client.company_name}</div>
@@ -320,19 +270,15 @@ export function ProjectModal({
                 )}
               </div>
               {errors.clientId && (
-                <p className="mt-2 text-sm text-red-400">
-                  {errors.clientId.message}
-                </p>
+                <p className="mt-2 text-sm text-red-400">{errors.clientId.message}</p>
               )}
             </div>
           )}
 
-          {/* Show current client info when editing or have pre-selected client */}
+          {/* Current Client Info */}
           {(isEditing || clientName) && currentClient && (
             <div className="bg-gray-700/30 rounded-lg p-3 border border-gray-600">
-              <label className="block text-sm font-medium text-gray-200 mb-1">
-                Client
-              </label>
+              <label className="block text-sm font-medium text-gray-200 mb-1">Client</label>
               <div className="flex items-center space-x-3">
                 <User className="h-4 w-4 text-gray-400" />
                 <div>
@@ -343,149 +289,113 @@ export function ProjectModal({
             </div>
           )}
 
+          {/* Project Title */}
           <div>
-            <label
-              htmlFor="title"
-              className="block text-sm font-medium text-gray-200 mb-2"
-            >
+            <label htmlFor="title" className="block text-sm font-medium text-gray-200 mb-2">
               Project Title
             </label>
             <input
               {...register("title")}
               type="text"
-              className="w-full px-3 py-2 bg-gray-700 focus:outline-none border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="Enter project title"
             />
             {errors.title && (
-              <p className="mt-2 text-sm text-red-400">
-                {errors.title.message}
-              </p>
+              <p className="mt-2 text-sm text-red-400">{errors.title.message}</p>
             )}
           </div>
 
+          {/* Project Description */}
           <div>
-            <label
-              htmlFor="description"
-              className="block text-sm font-medium text-gray-200 mb-2"
-            >
+            <label htmlFor="description" className="block text-sm font-medium text-gray-200 mb-2">
               Project Description
             </label>
             <textarea
               {...register("description")}
               rows={4}
-              className="w-full px-3 py-2 bg-gray-700 focus:outline-none border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
               placeholder="Enter project description"
             />
             {errors.description && (
-              <p className="mt-2 text-sm text-red-400">
-                {errors.description.message}
-              </p>
+              <p className="mt-2 text-sm text-red-400">{errors.description.message}</p>
             )}
           </div>
 
+          {/* Deadline and Budget */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label
-                htmlFor="deadline"
-                className="block text-sm font-medium text-gray-200 mb-2"
-              >
+              <label htmlFor="deadline" className="block text-sm font-medium text-gray-200 mb-2">
                 Deadline
               </label>
               <input
                 {...register("deadline")}
                 type="date"
-                className="w-full px-3 py-2 bg-gray-700 focus:outline-none border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent [&::-webkit-calendar-picker-indicator]:filter [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:opacity-60"
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent [&::-webkit-calendar-picker-indicator]:filter [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:opacity-60"
               />
               {errors.deadline && (
-                <p className="mt-2 text-sm text-red-400">
-                  {errors.deadline.message}
-                </p>
+                <p className="mt-2 text-sm text-red-400">{errors.deadline.message}</p>
               )}
             </div>
 
             <div>
-              <label
-                htmlFor="budget"
-                className="block text-sm font-medium text-gray-200 mb-2"
-              >
+              <label htmlFor="budget" className="block text-sm font-medium text-gray-200 mb-2">
                 Budget
               </label>
               <input
                 {...register("budget")}
                 type="text"
-                className="w-full px-3 py-2 bg-gray-700 focus:outline-none border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="₱ 0.00"
               />
               {errors.budget && (
-                <p className="mt-2 text-sm text-red-400">
-                  {errors.budget.message}
-                </p>
+                <p className="mt-2 text-sm text-red-400">{errors.budget.message}</p>
               )}
             </div>
           </div>
 
+          {/* Project Status */}
           <div>
             <label className="block text-sm font-medium text-gray-200 mb-3">
               Project Status
             </label>
             <div className="grid grid-cols-2 gap-4">
-              <label className="flex items-center">
-                <input
-                  {...register("status")}
-                  type="radio"
-                  value="Started"
-                  className="sr-only"
-                  onChange={() => setValue("status", "Started")}
-                />
-                <div
-                  className={`flex-1 p-4 border-2 rounded-lg cursor-pointer transition-all duration-200 ${
-                    watchedStatus === "Started"
-                      ? "border-blue-500 bg-blue-500/10 text-blue-400 shadow-lg"
-                      : "border-gray-600 text-gray-300 hover:border-gray-500 hover:bg-gray-800/30"
-                  }`}
-                >
-                  <div className="text-center">
-                    <p className="font-medium">Started</p>
-                    <p className="text-xs opacity-75 mt-1">(In Progress)</p>
+              {["Started", "Finished"].map((status) => (
+                <label key={status} className="flex items-center">
+                  <input
+                    {...register("status")}
+                    type="radio"
+                    value={status}
+                    className="sr-only"
+                    onChange={() => setValue("status", status as "Started" | "Finished")}
+                  />
+                  <div
+                    className={`flex-1 p-4 border-2 rounded-lg cursor-pointer transition-all duration-200 ${
+                      watchedStatus === status
+                        ? `border-${status === "Started" ? "blue" : "green"}-500 bg-${status === "Started" ? "blue" : "green"}-500/10 text-${status === "Started" ? "blue" : "green"}-400 shadow-lg`
+                        : "border-gray-600 text-gray-300 hover:border-gray-500 hover:bg-gray-800/30"
+                    }`}
+                  >
+                    <div className="text-center">
+                      <p className="font-medium">{status}</p>
+                      <p className="text-xs opacity-75 mt-1">
+                        {status === "Started" ? "(In Progress)" : "(Completed)"}
+                      </p>
+                    </div>
                   </div>
-                </div>
-              </label>
-
-              <label className="flex items-center">
-                <input
-                  {...register("status")}
-                  type="radio"
-                  value="Finished"
-                  className="sr-only"
-                  onChange={() => setValue("status", "Finished")}
-                />
-                <div
-                  className={`flex-1 p-4 border-2 rounded-lg cursor-pointer transition-all duration-200 ${
-                    watchedStatus === "Finished"
-                      ? "border-green-500 bg-green-500/10 text-green-400 shadow-lg"
-                      : "border-gray-600 text-gray-300 hover:border-gray-500 hover:bg-gray-800/30"
-                  }`}
-                >
-                  <div className="text-center">
-                    <p className="font-medium">Finished</p>
-                    <p className="text-xs opacity-75 mt-1">(Completed)</p>
-                  </div>
-                </div>
-              </label>
+                </label>
+              ))}
             </div>
             {errors.status && (
-              <p className="mt-2 text-sm text-red-400">
-                {errors.status.message}
-              </p>
+              <p className="mt-2 text-sm text-red-400">{errors.status.message}</p>
             )}
           </div>
 
+          {/* Invoice Upload */}
           <div>
             <label className="block text-sm font-medium text-gray-200 mb-2">
               {isEditing && editingProject?.invoice_url ? "Update Invoice (Optional)" : "Invoice Upload (Optional)"}
             </label>
             
-            {/* Show current invoice if editing and has one */}
             {isEditing && editingProject?.invoice_url && !selectedFile && (
               <div className="mb-3 p-3 bg-gray-700/30 rounded-lg border border-gray-600">
                 <div className="flex items-center justify-between">
@@ -541,7 +451,7 @@ export function ProjectModal({
                   </div>
                   <button
                     type="button"
-                    onClick={removeFile}
+                    onClick={() => setSelectedFile(null)}
                     className="p-2 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all duration-200 flex-shrink-0 ml-3"
                   >
                     <X className="h-5 w-5" />
@@ -556,14 +466,13 @@ export function ProjectModal({
                       : "Drop your PDF invoice here or click to browse"
                     }
                   </p>
-                  <p className="text-xs text-gray-500">
-                    PDF files only, up to 10MB
-                  </p>
+                  <p className="text-xs text-gray-500">PDF files only, up to 10MB</p>
                 </div>
               )}
             </div>
           </div>
 
+          {/* Form Actions */}
           <div className="flex space-x-3 pt-4 mt-2 flex-shrink-0">
             <Button
               type="button"

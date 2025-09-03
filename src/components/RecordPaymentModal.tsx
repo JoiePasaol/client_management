@@ -18,7 +18,6 @@ const paymentSchema = z.object({
 
 type PaymentForm = z.infer<typeof paymentSchema>;
 
-// Payment method options
 const paymentMethods = [
   { id: "Bank Transfer", name: "Bank Transfer" },
   { id: "Cash", name: "Cash" },
@@ -49,7 +48,6 @@ export function RecordPaymentModal({
     trigger,
   } = useForm<PaymentForm>({
     resolver: zodResolver(paymentSchema),
-    // Remove default values so the form resets properly
   });
 
   const handlePaymentMethodSelect = async (methodId: string) => {
@@ -61,7 +59,6 @@ export function RecordPaymentModal({
 
   const handleFormSubmit = async (data: PaymentForm) => {
     try {
-      // Convert amount string to number
       const paymentData = {
         ...data,
         amount: Number(data.amount),
@@ -83,60 +80,47 @@ export function RecordPaymentModal({
 
   return (
     <Modal isOpen={isOpen} onClose={handleClose} title="Record Payment">
-      {/* Scrollable content area */}
       <div className="overflow-y-auto max-h-[calc(90vh-8rem)]">
-        <form
-          onSubmit={handleSubmit(handleFormSubmit)}
-          className="space-y-4 p-6"
-        >
-        
-
+        <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4 p-6">
+          {/* Amount */}
           <div>
-            <label
-              htmlFor="amount"
-              className="block text-sm font-medium text-gray-200 mb-1"
-            >
+            <label htmlFor="amount" className="block text-sm font-medium text-gray-200 mb-1">
               Amount
             </label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
-              ₱
+                ₱
               </span>
               <input
                 {...register("amount")}
                 type="number"
                 step="0.01"
                 min="0"
-                className="w-full pl-6 py-2 bg-gray-700 focus:outline-none border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full pl-6 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="0.00"
               />
             </div>
             {errors.amount && (
-              <p className="mt-1 text-sm text-red-400">
-                {errors.amount.message}
-              </p>
+              <p className="mt-1 text-sm text-red-400">{errors.amount.message}</p>
             )}
           </div>
 
+          {/* Payment Date */}
           <div>
-            <label
-              htmlFor="paymentDate"
-              className="block text-sm font-medium text-gray-200 mb-1"
-            >
+            <label htmlFor="paymentDate" className="block text-sm font-medium text-gray-200 mb-1">
               Payment Date
             </label>
             <input
               {...register("paymentDate")}
               type="date"
-              className="w-full px-3 py-2 bg-gray-700 focus:outline-none border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent [&::-webkit-calendar-picker-indicator]:filter [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:opacity-60"
+              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent [&::-webkit-calendar-picker-indicator]:filter [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:opacity-60"
             />
             {errors.paymentDate && (
-              <p className="mt-1 text-sm text-red-400">
-                {errors.paymentDate.message}
-              </p>
+              <p className="mt-1 text-sm text-red-400">{errors.paymentDate.message}</p>
             )}
           </div>
 
+          {/* Payment Method */}
           <div>
             <label className="block text-sm font-medium text-gray-200 mb-2">
               Payment Method
@@ -145,19 +129,15 @@ export function RecordPaymentModal({
               <button
                 type="button"
                 onClick={() => setPaymentMethodDropdownOpen(!paymentMethodDropdownOpen)}
-                className={`w-full px-3 py-2 bg-gray-700 focus:outline-none border border-gray-600 rounded-lg text-left flex items-center justify-between focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                className={`w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-left flex items-center justify-between focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
                   selectedPaymentMethod ? 'text-white' : 'text-gray-400'
                 }`}
               >
                 <div className="flex items-center space-x-3">
                   <CreditCard className="h-4 w-4 text-gray-400" />
-                  <div>
-                    {selectedPaymentMethod ? (
-                      <span className="text-white">{selectedPaymentMethod}</span>
-                    ) : (
-                      <span>Select payment method...</span>
-                    )}
-                  </div>
+                  <span>
+                    {selectedPaymentMethod || "Select payment method..."}
+                  </span>
                 </div>
                 <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform ${
                   paymentMethodDropdownOpen ? 'transform rotate-180' : ''
@@ -165,13 +145,13 @@ export function RecordPaymentModal({
               </button>
 
               {paymentMethodDropdownOpen && (
-                <div className="absolute z-50 w-full mt-1 bg-gray-700 focus:outline-none border border-gray-600 rounded-lg shadow-lg max-h-60 overflow-auto">
+                <div className="absolute z-50 w-full mt-1 bg-gray-700 border border-gray-600 rounded-lg shadow-lg max-h-60 overflow-auto">
                   {paymentMethods.map((method) => (
                     <button
                       key={method.id}
                       type="button"
                       onClick={() => handlePaymentMethodSelect(method.id)}
-                      className="w-full px-3 py-2 text-left hover:bg-gray-800 focus:bg-gray-800 focus:outline-none transition-colors text-white"
+                      className="w-full px-3 py-2 text-left hover:bg-gray-800 focus:bg-gray-800 transition-colors text-white"
                     >
                       {method.name}
                     </button>
@@ -180,9 +160,7 @@ export function RecordPaymentModal({
               )}
             </div>
             {errors.paymentMethod && (
-              <p className="mt-2 text-sm text-red-400">
-                {errors.paymentMethod.message}
-              </p>
+              <p className="mt-2 text-sm text-red-400">{errors.paymentMethod.message}</p>
             )}
           </div>
 
@@ -201,7 +179,6 @@ export function RecordPaymentModal({
               loading={isSubmitting}
               disabled={isSubmitting}
               className="flex-1"
-              onClick={handleSubmit(handleFormSubmit)}
             >
               {isSubmitting ? "Recording Payment..." : "Record Payment"}
             </Button>

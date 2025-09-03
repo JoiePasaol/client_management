@@ -1,4 +1,3 @@
-// src/services/dashboardService.ts
 import { supabase } from '../lib/supabase';
 import { requestQueue } from '../utils/requestQueue';
 
@@ -32,7 +31,7 @@ export interface DashboardData {
   }>;
 }
 
-export const dashboardService = {
+class DashboardService {
   async getDashboardData(): Promise<DashboardData> {
     try {
       const { data, error } = await supabase.rpc('get_dashboard_data');
@@ -47,9 +46,9 @@ export const dashboardService = {
       console.error('Error in getDashboardData:', error);
       return await this.getDashboardDataFallback();
     }
-  },
+  }
 
-  async getDashboardDataFallback(): Promise<DashboardData> {
+  private async getDashboardDataFallback(): Promise<DashboardData> {
     const [clients, projects, allPayments, activities] = await Promise.all([
       requestQueue.add(() => this.getClientsStats()),
       requestQueue.add(() => this.getProjectsStats()),
@@ -87,73 +86,63 @@ export const dashboardService = {
       },
       activities
     };
-  },
+  }
 
-  async getClientsStats() {
+  private async getClientsStats() {
     const { data, error } = await supabase
       .from('clients')
       .select('id')
       .order('created_at', { ascending: false });
 
-    if (error) {
-      console.error('Error fetching clients stats:', error);
-      throw error;
-    }
+    if (error) throw error;
     return data || [];
-  },
+  }
 
-  async getProjectsStats() {
+  private async getProjectsStats() {
     const { data, error } = await supabase
       .from('projects')
       .select('id, budget, status')
       .order('created_at', { ascending: false });
 
-    if (error) {
-      console.error('Error fetching projects stats:', error);
-      throw error;
-    }
+    if (error) throw error;
     return data || [];
-  },
+  }
 
-  async getPaymentsStats() {
+  private async getPaymentsStats() {
     const { data, error } = await supabase
       .from('payments')
       .select('amount, payment_date')
       .order('payment_date', { ascending: false });
 
-    if (error) {
-      console.error('Error fetching payments stats:', error);
-      throw error;
-    }
+    if (error) throw error;
     return data || [];
-  },
+  }
 
-async getRecentActivities(limit: number = 4) {
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-  
-  const activities: any[] = [];
-  
-  try {
-    // Get recent payments
-    const { data: payments, error: paymentsError } = await supabase
-      .from('payments')
-      .select(`
-        id,
-        amount,
-        created_at,
-        project_id,
-        project:projects(
-          title,
-          client:clients(full_name, company_name)
-        )
-      `)
-      .gte('created_at', thirtyDaysAgo.toISOString())
-      .order('created_at', { ascending: false })
-      .limit(20); // Get more to ensure we have enough after sorting
+  private async getRecentActivities(limit: number = 4) {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    const activities: any[] = [];
+    
+    try {
+      // Get recent payments
+      const { data: payments } = await supabase
+        .from('payments')
+        .select(`
+          id,
+          amount,
+          created_at,
+          project_id,
+          project:projects(
+            title,
+            client:clients(full_name, company_name)
+          )
+        `)
+        .gte('created_at', thirtyDaysAgo.toISOString())
+        .order('created_at', { ascending: false })
+        .limit(20);
 
-    if (!paymentsError && payments) {
-      payments.forEach(payment => {
+      payments?.forEach(payment => {
         const clientName = payment.project?.client?.full_name || payment.project?.client?.company_name || 'Unknown Client';
         const projectTitle = payment.project?.title || 'Unknown Project';
         
@@ -166,7 +155,7 @@ async getRecentActivities(limit: number = 4) {
             day: '2-digit',
             year: 'numeric'
           }),
-          created_at: payment.created_at, // Keep original timestamp for sorting
+          created_at: payment.created_at,
           icon_type: 'peso' as const,
           project_id: payment.project_id,
           client_name: clientName,
@@ -174,27 +163,25 @@ async getRecentActivities(limit: number = 4) {
           amount: payment.amount
         });
       });
-    }
 
-    // Get recent project updates
-    const { data: updates, error: updatesError } = await supabase
-      .from('project_updates')
-      .select(`
-        id,
-        description,
-        created_at,
-        project_id,
-        project:projects(
-          title,
-          client:clients(full_name, company_name)
-        )
-      `)
-      .gte('created_at', thirtyDaysAgo.toISOString())
-      .order('created_at', { ascending: false })
-      .limit(20); // Get more to ensure we have enough after sorting
+      // Get recent project updates
+      const { data: updates } = await supabase
+        .from('project_updates')
+        .select(`
+          id,
+          description,
+          created_at,
+          project_id,
+          project:projects(
+            title,
+            client:clients(full_name, company_name)
+          )
+        `)
+        .gte('created_at', thirtyDaysAgo.toISOString())
+        .order('created_at', { ascending: false })
+        .limit(20);
 
-    if (!updatesError && updates) {
-      updates.forEach(update => {
+      updates?.forEach(update => {
         const clientName = update.project?.client?.full_name || update.project?.client?.company_name || 'Unknown Client';
         const projectTitle = update.project?.title || 'Unknown Project';
         const description = update.description?.length > 50 ? `${update.description.slice(0, 50)}...` : update.description;
@@ -208,65 +195,34 @@ async getRecentActivities(limit: number = 4) {
             day: '2-digit',
             year: 'numeric'
           }),
-          created_at: update.created_at, // Keep original timestamp for sorting
+          created_at: update.created_at,
           icon_type: 'folder' as const,
           project_id: update.project_id,
           client_name: clientName,
           project_title: projectTitle
         });
       });
-    }
 
-    // Get recently finished projects
-    const { data: finishedProjects, error: projectsError } = await supabase
-      .from('projects')
-      .select(`
-        id,
-        title,
-        created_at,
-        status_updated_at,
-        client:clients(full_name, company_name)
-      `)
-      .eq('status', 'Finished')
-      .gte('created_at', thirtyDaysAgo.toISOString())
-      .order('created_at', { ascending: false })
-      .limit(20); // Get more to ensure we have enough after sorting
-
-    if (!projectsError && finishedProjects) {
-      finishedProjects.forEach(project => {
-        const clientName = project.client?.full_name || project.client?.company_name || 'Unknown Client';
-        
-        activities.push({
-          id: `project-finished-${project.id}`,
-          type: 'project_finished',
-          message: `Project completed: ${project.title} for ${clientName}`,
-          date: new Date(project.created_at).toLocaleDateString('en-US', {
-            month: '2-digit',
-            day: '2-digit',
-            year: 'numeric'
-          }),
-          created_at: project.created_at, // Keep original timestamp for sorting
-          icon_type: 'folder' as const,
-          project_id: project.id,
-          client_name: clientName,
-          project_title: project.title
-        });
+      // Sort by timestamp and return limited results
+      activities.sort((a, b) => {
+        const dateA = new Date(a.created_at);
+        const dateB = new Date(b.created_at);
+        return dateB.getTime() - dateA.getTime();
       });
+      
+      return activities.slice(0, limit);
+      
+    } catch (error) {
+      console.error('Error fetching recent activities:', error);
+      return [];
     }
-
-    // Sort by actual timestamp (most recent first) and limit to 4
-    activities.sort((a, b) => {
-      const dateA = new Date(a.created_at);
-      const dateB = new Date(b.created_at);
-      return dateB.getTime() - dateA.getTime();
-    });
-    
-    // Return only the 4 most recent activities
-    return activities.slice(0, limit);
-    
-  } catch (error) {
-    console.error('Error fetching recent activities:', error);
-    return [];
   }
 }
-};
+
+export const dashboardService = new DashboardService();
+
+// Re-export types for convenience
+export type { 
+  PaymentForm,
+  ProjectUpdateForm
+}

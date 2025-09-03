@@ -15,7 +15,6 @@ const clientSchema = z.object({
 
 type ClientForm = z.infer<typeof clientSchema>;
 
-// Client type for editing
 type ClientForEdit = {
   id: number;
   full_name: string;
@@ -52,7 +51,6 @@ export function ClientModal({
     resolver: zodResolver(clientSchema),
   });
 
-  // Set form values when editing
   useEffect(() => {
     if (isOpen && editingClient) {
       setValue("fullName", editingClient.full_name);
@@ -60,23 +58,16 @@ export function ClientModal({
       setValue("phoneNumber", editingClient.phone_number);
       setValue("address", editingClient.address);
       setValue("companyName", editingClient.company_name);
-    }
-  }, [isOpen, editingClient, setValue]);
-
-  // Reset form when modal opens for new client
-  useEffect(() => {
-    if (isOpen && !editingClient) {
+    } else if (isOpen && !editingClient) {
       reset();
     }
-  }, [isOpen, editingClient, reset]);
+  }, [isOpen, editingClient, setValue, reset]);
 
   const handleFormSubmit = async (data: ClientForm) => {
     try {
       if (isEditing && editingClient && onUpdate) {
-        // Handle update
         await onUpdate(editingClient.id, data);
       } else {
-        // Handle create
         await onSubmit(data);
       }
       
@@ -92,121 +83,43 @@ export function ClientModal({
     onClose();
   };
 
-  // Determine modal title
   const getModalTitle = () => {
-    if (isEditing) {
-      return `Edit Client: ${editingClient?.full_name}`;
-    }
-    return "Add New Client";
+    return isEditing ? `Edit Client: ${editingClient?.full_name}` : "Add New Client";
   };
+
+  const formFields = [
+    { name: "fullName", label: "Full Name", type: "text", placeholder: "Enter full name" },
+    { name: "email", label: "Email Address", type: "email", placeholder: "Enter email address" },
+    { name: "phoneNumber", label: "Phone Number", type: "tel", placeholder: "Enter phone number" },
+    { name: "address", label: "Address", type: "text", placeholder: "Enter address" },
+    { name: "companyName", label: "Company Name", type: "text", placeholder: "Enter company name" },
+  ] as const;
 
   return (
     <Modal isOpen={isOpen} onClose={handleClose} title={getModalTitle()}>
-      {/* Scrollable content area */}
       <div className="overflow-y-auto max-h-[calc(90vh-8rem)]">
-        <form
-          onSubmit={handleSubmit(handleFormSubmit)}
-          className="space-y-4 p-6"
-        >
-          <div>
-            <label
-              htmlFor="fullName"
-              className="block text-sm font-medium text-gray-200 mb-1"
-            >
-              Full Name
-            </label>
-            <input
-              {...register("fullName")}
-              type="text"
-              className="w-full px-3 py-2 bg-gray-700 focus:outline-none border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Enter full name"
-            />
-            {errors.fullName && (
-              <p className="mt-1 text-sm text-red-400">
-                {errors.fullName.message}
-              </p>
-            )}
-          </div>
-
-          <div>
-            <label
-              htmlFor="email"
-              className="block text-sm font-medium text-gray-200 mb-1"
-            >
-              Email Address
-            </label>
-            <input
-              {...register("email")}
-              type="email"
-              className="w-full px-3 py-2 bg-gray-700 focus:outline-none border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Enter email address"
-            />
-            {errors.email && (
-              <p className="mt-1 text-sm text-red-400">
-                {errors.email.message}
-              </p>
-            )}
-          </div>
-
-          <div>
-            <label
-              htmlFor="phoneNumber"
-              className="block text-sm font-medium text-gray-200 mb-1"
-            >
-              Phone Number
-            </label>
-            <input
-              {...register("phoneNumber")}
-              type="tel"
-              className="w-full px-3 py-2 bg-gray-700 focus:outline-none border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Enter phone number"
-            />
-            {errors.phoneNumber && (
-              <p className="mt-1 text-sm text-red-400">
-                {errors.phoneNumber.message}
-              </p>
-            )}
-          </div>
-
-          <div>
-            <label
-              htmlFor="address"
-              className="block text-sm font-medium text-gray-200 mb-1"
-            >
-              Address
-            </label>
-            <input
-              {...register("address")}
-              type="text"
-              className="w-full px-3 py-2 bg-gray-700 focus:outline-none border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Enter address"
-            />
-            {errors.address && (
-              <p className="mt-1 text-sm text-red-400">
-                {errors.address.message}
-              </p>
-            )}
-          </div>
-
-          <div>
-            <label
-              htmlFor="companyName"
-              className="block text-sm font-medium text-gray-200 mb-1"
-            >
-              Company Name
-            </label>
-            <input
-              {...register("companyName")}
-              type="text"
-              className="w-full px-3 py-2 bg-gray-700 focus:outline-none border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Enter company name"
-            />
-            {errors.companyName && (
-              <p className="mt-1 text-sm text-red-400">
-                {errors.companyName.message}
-              </p>
-            )}
-          </div>
+        <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4 p-6">
+          {formFields.map((field) => (
+            <div key={field.name}>
+              <label
+                htmlFor={field.name}
+                className="block text-sm font-medium text-gray-200 mb-1"
+              >
+                {field.label}
+              </label>
+              <input
+                {...register(field.name)}
+                type={field.type}
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder={field.placeholder}
+              />
+              {errors[field.name] && (
+                <p className="mt-1 text-sm text-red-400">
+                  {errors[field.name]?.message}
+                </p>
+              )}
+            </div>
+          ))}
 
           <div className="flex space-x-3 pt-2 flex-shrink-0">
             <Button

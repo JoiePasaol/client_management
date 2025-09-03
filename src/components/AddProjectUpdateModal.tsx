@@ -24,7 +24,6 @@ export function AddProjectUpdateModal({
   isOpen,
   onClose,
   onSubmit,
-  projectTitle,
 }: AddProjectUpdateModalProps) {
   const {
     register,
@@ -52,12 +51,8 @@ export function AddProjectUpdateModal({
 
   return (
     <Modal isOpen={isOpen} onClose={handleClose} title="Add Project Update">
-      {/* Scrollable content area */}
       <div className="overflow-y-auto max-h-[calc(90vh-8rem)]">
-        <form
-          onSubmit={handleSubmit(handleFormSubmit)}
-          className="space-y-4 p-6"
-        >
+        <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4 p-6">
           <div>
             <textarea
               {...register("description")}
@@ -66,13 +61,9 @@ export function AddProjectUpdateModal({
               placeholder="Describe the project progress, milestones achieved, challenges faced, or any important updates..."
             />
             {errors.description && (
-              <p className="mt-1 text-sm text-red-400">
-                {errors.description.message}
-              </p>
+              <p className="mt-1 text-sm text-red-400">{errors.description.message}</p>
             )}
-            <p className="mt-1 text-xs text-gray-500">
-              Minimum 10 characters required
-            </p>
+            <p className="mt-1 text-xs text-gray-500">Minimum 10 characters required</p>
           </div>
 
           <div className="flex space-x-3 pt-2 flex-shrink-0">
@@ -90,7 +81,6 @@ export function AddProjectUpdateModal({
               loading={isSubmitting}
               disabled={isSubmitting}
               className="flex-1"
-              onClick={handleSubmit(handleFormSubmit)}
             >
               {isSubmitting ? "Adding Update..." : "Add Update"}
             </Button>

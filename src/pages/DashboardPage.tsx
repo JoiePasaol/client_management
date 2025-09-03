@@ -1,4 +1,3 @@
-// src/pages/DashboardPage.tsx (updated)
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
@@ -16,7 +15,6 @@ import { ErrorState } from "../components/common/ErrorState";
 import { formatCurrency } from "../utils/formatters";
 import { dashboardService, type DashboardData } from "../services/dashboardService";
 
-// Simple cache implementation
 const dashboardCache = {
   data: null as DashboardData | null,
   timestamp: 0,
@@ -32,11 +30,6 @@ const dashboardCache = {
   set(data: DashboardData) {
     this.data = data;
     this.timestamp = Date.now();
-  },
-
-  clear() {
-    this.data = null;
-    this.timestamp = 0;
   }
 };
 
@@ -51,7 +44,6 @@ export function DashboardPage() {
         setLoading(true);
         setError(null);
 
-        // Check cache first
         const cachedData = dashboardCache.get();
         if (cachedData) {
           setDashboardData(cachedData);
@@ -73,7 +65,6 @@ export function DashboardPage() {
 
     fetchDashboardData();
 
-    // Refresh data every 5 minutes
     const intervalId = setInterval(fetchDashboardData, 5 * 60 * 1000);
     return () => clearInterval(intervalId);
   }, []);
@@ -81,19 +72,9 @@ export function DashboardPage() {
   const highlightAmounts = (message: string) => {
     if (!message) return '';
     
-    const currencyPatterns = [
-      /₱[\d,]+(?:\.\d{2})?/g, 
-    ];
-
-    let highlightedMessage = message;
-    
-    currencyPatterns.forEach(pattern => {
-      highlightedMessage = highlightedMessage.replace(pattern, (match) => {
-        return `<span class="text-green-400 font-semibold">${match}</span>`;
-      });
+    return message.replace(/₱[\d,]+(?:\.\d{2})?/g, (match) => {
+      return `<span class="text-green-400 font-semibold">${match}</span>`;
     });
-
-    return highlightedMessage;
   };
 
   if (loading) {
@@ -109,7 +90,6 @@ export function DashboardPage() {
     );
   }
 
-  // Defensive programming: ensure all required properties exist with defaults
   const stats = dashboardData.stats || {
     totalClients: 0,
     totalProjects: 0,
@@ -132,26 +112,10 @@ export function DashboardPage() {
   const activities = dashboardData.activities || [];
 
   const statsCards = [
-    {
-      name: "Total Clients",
-      value: stats.totalClients.toString(),
-      icon: Users,
-    },
-    {
-      name: "Total Projects",
-      value: stats.totalProjects.toString(),
-      icon: FolderOpen,
-    },
-    {
-      name: "Monthly Revenue",
-      value: formatCurrency(stats.monthlyRevenue),
-      icon: TrendingUp,
-    },
-    {
-      name: "Total Revenue",
-      value: formatCurrency(stats.totalRevenue),
-      icon: TrendingUp,
-    },
+    { name: "Total Clients", value: stats.totalClients.toString(), icon: Users },
+    { name: "Total Projects", value: stats.totalProjects.toString(), icon: FolderOpen },
+    { name: "Monthly Revenue", value: formatCurrency(stats.monthlyRevenue), icon: TrendingUp },
+    { name: "Total Revenue", value: formatCurrency(stats.totalRevenue), icon: TrendingUp },
   ];
 
   const projectStatusData = [
@@ -161,24 +125,9 @@ export function DashboardPage() {
   ];
 
   const financialOverview = [
-    { 
-      id: 1, 
-      label: "Total Budget", 
-      value: formatCurrency(financials.totalBudget), 
-      icon: PhilippinePeso
-    },
-    { 
-      id: 2, 
-      label: "Paid", 
-      value: formatCurrency(financials.totalPaid), 
-      icon: PhilippinePeso
-    },
-    { 
-      id: 3, 
-      label: "Outstanding", 
-      value: formatCurrency(financials.outstanding), 
-      icon: PhilippinePeso
-    },
+    { id: 1, label: "Total Budget", value: formatCurrency(financials.totalBudget), icon: PhilippinePeso },
+    { id: 2, label: "Paid", value: formatCurrency(financials.totalPaid), icon: PhilippinePeso },
+    { id: 3, label: "Outstanding", value: formatCurrency(financials.outstanding), icon: PhilippinePeso },
   ];
 
   return (
@@ -211,12 +160,8 @@ export function DashboardPage() {
               <Card className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-xs font-medium text-gray-400">
-                      {stat.name}
-                    </p>
-                    <p className="text-2xl font-bold text-white mt-2">
-                      {stat.value}
-                    </p>
+                    <p className="text-xs font-medium text-gray-400">{stat.name}</p>
+                    <p className="text-2xl font-bold text-white mt-2">{stat.value}</p>
                   </div>
                   <div className="h-12 w-12 bg-blue-50 rounded-lg flex items-center justify-center">
                     <Icon className="h-6 w-6 text-blue-600" />
@@ -238,9 +183,7 @@ export function DashboardPage() {
         >
           <Card className="p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-white">
-                Recent Activity
-              </h3>
+              <h3 className="text-lg font-semibold text-white">Recent Activity</h3>
               <Clock className="h-5 w-5 text-gray-400" />
             </div>
             
@@ -252,7 +195,7 @@ export function DashboardPage() {
             ) : (
               <div className="space-y-4 max-h-96 overflow-y-auto">
                 {activities.map((activity, index) => {
-                  if (!activity || !activity.id) return null;
+                  if (!activity?.id) return null;
                   
                   const Icon = activity.icon_type === 'peso' ? PhilippinePeso : FolderOpen;
                   
@@ -276,9 +219,7 @@ export function DashboardPage() {
                             __html: highlightAmounts(activity.message || '') 
                           }}
                         />
-                        <p className="text-xs text-gray-400 mt-1">
-                          {activity.date || ''}
-                        </p>
+                        <p className="text-xs text-gray-400 mt-1">{activity.date || ''}</p>
                       </div>
                     </motion.div>
                   );
@@ -296,17 +237,13 @@ export function DashboardPage() {
         >
           <Card className="p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-white">
-                Quick Insight
-              </h3>
+              <h3 className="text-lg font-semibold text-white">Quick Insight</h3>
               <TrendingUp className="h-5 w-5 text-gray-400" />
             </div>
 
             {/* Project Status */}
             <div className="mb-6">
-              <h4 className="text-sm font-medium text-gray-400 mb-2">
-                Project Status
-              </h4>
+              <h4 className="text-sm font-medium text-gray-400 mb-2">Project Status</h4>
               <div className="space-y-3">
                 {projectStatusData.map((item, index) => {
                   const Icon = item.icon;
@@ -324,9 +261,7 @@ export function DashboardPage() {
                         </div>
                         <span className="text-sm text-white">{item.label}</span>
                       </div>
-                      <span className="text-sm font-semibold text-white">
-                        {item.value}
-                      </span>
+                      <span className="text-sm font-semibold text-white">{item.value}</span>
                     </motion.div>
                   );
                 })}
@@ -335,9 +270,7 @@ export function DashboardPage() {
 
             {/* Financial Overview */}
             <div>
-              <h4 className="text-sm font-medium text-gray-400 mb-2">
-                Financial Overview
-              </h4>
+              <h4 className="text-sm font-medium text-gray-400 mb-2">Financial Overview</h4>
               <div className="space-y-3">
                 {financialOverview.map((item, index) => {
                   const Icon = item.icon;
@@ -355,9 +288,7 @@ export function DashboardPage() {
                         </div>
                         <span className="text-sm text-white">{item.label}</span>
                       </div>
-                      <span className="text-sm font-semibold text-white">
-                        {item.value}
-                      </span>
+                      <span className="text-sm font-semibold text-white">{item.value}</span>
                     </motion.div>
                   );
                 })}

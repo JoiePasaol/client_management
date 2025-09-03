@@ -1,4 +1,3 @@
-// src/context/AuthContext.tsx (updated)
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import type { User, Session } from '@supabase/supabase-js';
@@ -18,7 +17,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const [retryCount, setRetryCount] = useState(0);
 
   const refreshSession = useCallback(async (retry = 0): Promise<void> => {
     try {
@@ -26,7 +24,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       if (error) {
         if (retry < 3) {
-          // Exponential backoff
           await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retry)));
           return refreshSession(retry + 1);
         }
@@ -37,7 +34,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       setSession(session);
       setUser(session?.user ?? null);
-      setRetryCount(0); // Reset retry count on success
     } catch (err) {
       console.error('Unexpected error refreshing session:', err);
       if (retry < 3) {
@@ -50,7 +46,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let mounted = true;
-    let authStateSubscription: any;
 
     const initializeAuth = async () => {
       try {
@@ -81,7 +76,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     initializeAuth();
 
-    // Listen for auth changes with improved handling
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return;
 
@@ -99,9 +93,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setSession(session);
           setUser(session?.user ?? null);
           break;
-        case 'INITIAL_SESSION':
-          // Already handled by getSession()
-          break;
       }
       
       setLoading(false);
@@ -115,7 +106,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signIn = async (username: string, password: string) => {
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const { error } = await supabase.auth.signInWithPassword({
         email: username, 
         password,
       });
